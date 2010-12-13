@@ -1,7 +1,7 @@
 var zotero = require("./zoteronode").zotero;
 
 var CSL_NODEJS = function () {
-    var parser = require('./node-o3-xml/lib/o3-xml');
+    var parser = require(global.zcite.config.parserPath);
 	//var parser = require('/usr/local/node/o3-xml');
     //var fastparser = require('./node-o3-fastxml/lib/o3-fastxml');
 	this.parser = parser;
