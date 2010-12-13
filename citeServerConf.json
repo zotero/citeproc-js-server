@@ -2,9 +2,15 @@
     "debugType" : "file", 
     "debugLog":true,
     "debugLogPath" : "./citeServerLog",
-    "debugPrintLevel" : 4,
+    "debugPrintLevel" : 5,
     "localesPath" : "./csl-locales/trunk",
     "cslPath" : "./csl1.0",
-    "logFile" : "./citeServerLog.log"
+    "parserPath" : "../nodejs/node-o3-xml/lib/o3-xml",
+    "stepPath" : "./step",
+    "citeprocmodulePath" : "./citeprocmodule",
+    "cslFetcherPath" : "./cslFetcher",
+    "localesPath" : "./csl-locales/trunk",
+    "logFile" : "./citeServerLog.log",
+    "listenport" : 8085
 }
 
