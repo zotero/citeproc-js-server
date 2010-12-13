@@ -39,7 +39,7 @@ cslFetcher.init = function(config){
 }
 
 cslFetcher.getCachedStyle = function(url){
-    //console.log('cslFetcher.getCachedStyle');
+    //zcite.debug('cslFetcher.getCachedStyle', 5);
     if(typeof this._cache[url] != 'undefined'){
         return this._cache[url];
     }
@@ -48,45 +48,77 @@ cslFetcher.getCachedStyle = function(url){
     }
 }
 
-cslFetcher.processStyleIdentifier = function(style, callback){
+cslFetcher.processStyleIdentifier = function(style){
+    zcite.debug("processStyleIdentifier", 5);
     var urlObj = url.parse(style);
     if(typeof urlObj.host == "undefined"){
+        zcite.debug("short name only", 5);
         //short name, treat as a zotero.org/styles url
         var newStyleUrl = 'http://www.zotero.org/styles/' + style;
         urlObj = url.parse(newStyleUrl);
         urlObj.shortName = style;
     }
-    else{
+    else if(urlObj.host == 'www.zotero.org'){
+        zcite.debug("www.zotero.org host", 5);
         if(typeof urlObj.pathname == 'string'){
-            var shortName = urlObj.pathname.substr(8);
+            urlObj.shortName = urlObj.pathname.substr(8);
+        }
+    }
+    else{
+        zcite.debug("default", 5);
+        if(typeof urlObj.pathname == 'string'){
+            urlObj.shortName = urlObj.pathname.substr(8);
         }
     }
     return urlObj;
 };
 
-cslFetcher.resolveZoteroShortName = function(zcreq, shortName){
+cslFetcher.resolveStyle = function(zcreq, callback){
+    zcite.debug("resolveStyle", 5);
+    var urlObj = zcreq.styleUrlObj;
+    var shortName = urlObj.shortName;
     //check if independent style from zotero repo
     if((typeof this.cslShortNames[shortName] != 'undefined') && (this.cslShortNames[shortName] === true)){
-        var filename = this.cslDirPath + '/' + shortName + '.csl';
-        return filename;
+        zcite.debug("independent style", 5);
+        callback(null, zcreq);
+        //var filename = this.cslDirPath + '/' + shortName + '.csl';
+        //return filename;
     }
     //check if dependent file from zotero repo
     else if(typeof this.cslDependentShortNames[shortName] != 'undefined'){
+        zcite.debug("dependent style", 5);
         //cached dependent style reference
-        if(typeof this.cslDependentShortNames[shortName] == "string"){
-            return this.resolveZoteroShortName(zcreq, this.cslDependentShortNames[shortName]);
+        if(typeof cslFetcher.cslDependentShortNames[shortName] == "string"){
+            var parentStyle = cslFetcher.cslDependentShortNames[shortName];
+            zcreq.styleUrlObj = cslFetcher.processStyleIdentifier(parentStyle);
+            callback(null, zcreq);
         }
         //dependent style we haven't resolved before
         else{
-            var filename = this.cslDirPath + '/dependent/' + shortName + '.csl';
-            
+            var filename = this.cslPath + '/dependent/' + shortName + '.csl';
+            zcite.debug("dependent filename: " + filename, 5);
+            fs.readFile(filename, 'utf8', function(err, data){
+                zcite.debug("read dependent file", 5);
+                var dependentcsl = data;
+                var parentStyle = cslFetcher.readDependent(dependentcsl);
+                zcite.debug(parentStyle, 5);
+                cslFetcher.cslDependentShortNames[shortName] = parentStyle;
+                //zcite.debug("about to process " + parentStyle, 5);
+                //zcite.debug(zcreq, 5);
+                zcreq.styleUrlObj = cslFetcher.processStyleIdentifier(parentStyle);
+                callback(err, zcreq);
+            });
         }
+    }
+    else{
+        zcite.debug("no style found", 5);
+        callback("no style found", zcreq);
     }
 };
 
 cslFetcher.fetchStyle = function(zcreq, callback){
     try{
-        //console.log('cslFetcher.fetchStyle');
+        //zcite.debug('cslFetcher.fetchStyle', 5);
         if(zcreq.styleUrlObj.host == 'www.zotero.org'){
             //check if independent style from zotero repo
             if((typeof this.cslShortNames[zcreq.styleUrlObj.shortName] != 'undefined') && (this.cslShortNames[zcreq.styleUrlObj.shortName] === true)){
@@ -104,6 +136,8 @@ cslFetcher.fetchStyle = function(zcreq, callback){
             }
         }
         else{
+            throw "non-Zotero styles are not supported at this time";
+            /*
             var cslXml = '';
             var fetchConn = http.createClient(80, urlObj.host);
             var request = fetchConn.request('GET', urlObj.pathname,
@@ -122,6 +156,7 @@ cslFetcher.fetchStyle = function(zcreq, callback){
                 });
             });
             request.end();
+            */
         }
     }
     catch(err){
@@ -139,7 +174,7 @@ cslFetcher.readDependent = function(xml){
     var linkEls = dStyle.getElementsByTagName("link");
     for(var i = 0; i < linkEls.length; i++){
         if(linkEls[i].getAttribute("rel") == "independent-parent"){
-            console.log("independent-parent found: " + linkEls[i].getAttribute("href"));
+            zcite.debug("independent-parent found: " + linkEls[i].getAttribute("href"), 5);
             return linkEls[i].getAttribute("href");
         }
     }
@@ -149,8 +184,10 @@ cslFetcher.readDependent = function(xml){
 if (typeof module !== 'undefined' && "exports" in module) {
     exports.cslFetcher = cslFetcher;
 }
-
-console.log("init cslFetcher");
+/*
+zcite.debug("init cslFetcher");
 cslFetcher.init();
-
-
+var xml = fs.readFileSync("./csl1.0/dependent/radiology.csl", 'utf8');
+var independent = cslFetcher.readDependent(xml);
+zcite.debug(cslFetcher.processStyleIdentifier(independent));
+*/
