@@ -58,7 +58,7 @@ zcite.debug = function(m, level){
 
 //zcite exception response function
 zcite.respondException = function(err, response, statusCode){
-    console.log("respondException");
+    zcite.debug("respondException", 5);
     zcite.debug(err, 3);
     if(typeof statusCode == 'undefined'){
         var statusCode = 500;
@@ -113,6 +113,7 @@ zcite.cslXml = {};
 //object for storing initialized CSL Engines by config options
 //key is style, lang
 zcite.cachedEngines = {};
+zcite.cachedEngineCount = 0;
 
 zcite.createEngine = function(zcreq, callback){
     //console.log(zcreq);
@@ -142,16 +143,17 @@ zcite.cacheLoadEngine = function(styleUri, locale){
     zcite.debug('zcite.cacheLoadEngine', 5);
     var cacheEngineString = styleUri + ':' + locale;
     zcite.debug(cacheEngineString, 5);
-    if(typeof this.cachedEngines[cacheEngineString] == 'undefined'){
+    if((typeof this.cachedEngines[cacheEngineString] == 'undefined') || 
+       (typeof this.cachedEngines[cacheEngineString].store == 'undefined')){
         zcite.debug("no cached engine found", 5);
         return false;
     }
-    else if(this.cachedEngines[cacheEngineString] instanceof Array){
-        if(this.cachedEngines[cacheEngineString].length == 0){
+    else if(this.cachedEngines[cacheEngineString].store instanceof Array){
+        if(this.cachedEngines[cacheEngineString].store.length == 0){
             return false;
         }
         else{
-            var citeproc = zcite.cachedEngines[cacheEngineString].pop();
+            var citeproc = zcite.cachedEngines[cacheEngineString].store.pop();
             citeproc.sys.items = {};
             citeproc.updateItems([]);
             citeproc.restoreProcessorState();
@@ -159,7 +161,7 @@ zcite.cacheLoadEngine = function(styleUri, locale){
         }
     }
     else{
-        var citeproc = zcite.cachedEngines[cacheEngineString];
+        var citeproc = zcite.cachedEngines[cacheEngineString].store;
         citeproc.sys.items = {};
         citeproc.updateItems([]);
         citeproc.restoreProcessorState();
@@ -176,18 +178,50 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
     citeproc.sys.items = {};
     citeproc.updateItems([]);
     citeproc.restoreProcessorState();
+    
     if(typeof this.cachedEngines[cacheEngineString] == 'undefined'){
         zcite.debug("saving engine", 5);
-        this.cachedEngines[cacheEngineString] = [citeproc];
+        this.cachedEngines[cacheEngineString] = {store: [citeproc], used: Date.now()};
     }
     else{
-        if(this.cachedEngines[cacheEngineString] instanceof Array){
+        if(this.cachedEngines[cacheEngineString].store instanceof Array){
             zcite.debug('pushing instance of engine', 5)
-            this.cachedEngines[cacheEngineString].push(citeproc);
-            zcite.debug('cachedEngines[cacheEngineString].length:' + this.cachedEngines[cacheEngineString].length, 5);
+            this.cachedEngines[cacheEngineString].store.push(citeproc);
+            this.cachedEngines[cacheEngineString].used = Date.now();
+            zcite.debug('cachedEngines[cacheEngineString].length:' + this.cachedEngines[cacheEngineString].store.length, 5);
         }
     }
+    
+    //increment saved count and try cleaning the cache every x saves
+    zcite.cachedEngineCount++;
+    if(zcite.cachedEngineCount > 60){
+        zcite.cleanCache();
+        zcite.cachedEngineCount = 0;
+    }
 };
+
+//clean up cache of engines
+zcite.cleanCache = function(){
+    var gcCacheArray = [];
+    for(var i in this.cachedEngines){
+        gcCacheArray.push(i);
+    }
+    if(gcCacheArray.length > zcite.config.engineCacheSize){
+        gcCacheArray.sort(function(a, b){
+            return zcite.cachedEngines[b].used - zcite.cachedEngines[a].used;
+        });
+        
+        for(var i = zcite.config.engineCacheSize; i < gcCacheArray.length; i++){
+            delete zcite.cachedEngines[gcCacheArray[i]];
+        }
+    }
+    /*
+    for(var i = 0; i < gcCacheArray.length; i++){
+        var e = zcite.cachedEngines[gcCacheArray[i]];
+        zcite.debug(gcCacheArray[i] + " : " + e.used, 5);
+    }
+    */
+}
 
 //precache CSL Engines on startup with style:locale 
 zcite.debug('precaching CSL engines', 5);
@@ -389,9 +423,9 @@ zcite.configureRequest = function(uriConf){
 http.createServer(function (request, response) {
     //zcreq keeps track of information about this request and is passed around
     var zcreq = {};
-    console.log("request received");
+    zcite.debug("request received", 5);
     if(request.method == "OPTIONS"){
-        console.log("options request received");
+        zcite.debug("options request received", 5);
         var nowdate = new Date();
         response.writeHead(200, {
             'Date': nowdate.toUTCString(),
@@ -494,7 +528,8 @@ http.createServer(function (request, response) {
                     zcite.debug("request step: fetchStyleIdentifier", 5);
                     //console.log(zcreq);
                     zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
-                    return zcreq;
+                    zcite.cslFetcher.resolveStyle(zcreq, this);
+                    //return zcreq;
                 },
                 function tryCachedEngine(err, zcreq){
                     if(err){
@@ -515,22 +550,23 @@ http.createServer(function (request, response) {
                 function fetchStyle(err, zcreq){
                     zcite.debug("request step: fetchStyle", 5);
                     if(err){
-                        zcite.debug("rethrowing error in fetchStyle");
+                        zcite.debug("rethrowing error in fetchStyle", 5);
                         throw err;
                     }
                     if(typeof zcreq.citeproc != 'undefined'){
                         //have cached engine, don't need csl xml
+                        zcite.debug("already have citeproc : continuing", 5);
                         return zcreq;
                     }
                     var cslXml;
-                    if(cslXml = zcite.cslFetcher.getCachedStyle(zcreq.styleUrlObj.href)){
+                    /*if(cslXml = zcite.cslFetcher.getCachedStyle(zcreq.styleUrlObj.href)){
                         //successfully fetched cached style - load engine and run request
                         zcreq.cslXml = cslXml;
                         return zcreq;
                     }
-                    else{
+                    else{*/
                         zcite.cslFetcher.fetchStyle(zcreq, this);
-                    }
+                    //}
                 },
                 function createEngine(err, zcreq){
                     zcite.debug("request step: createEngine", 5);
@@ -594,4 +630,5 @@ zcite.debug('Server running at http://127.0.0.1:' + zcite.config.listenport + '/
 process.on('uncaughtException', function (err) {
     zcite.respondException(err, response);
 });
+
 

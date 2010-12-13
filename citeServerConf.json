@@ -11,6 +11,7 @@
     "cslFetcherPath" : "./cslFetcher",
     "localesPath" : "./csl-locales/trunk",
     "logFile" : "./citeServerLog.log",
+    "engineCacheSize" : 20,
     "listenport" : 8085
 }
 
