@@ -26,6 +26,7 @@
 var fs = require('fs');
 var http = require('http');
 var url = require('url');
+var jsdom = require('jsdom');
 
 var cslFetcher = {
     '_cache':{}
@@ -34,15 +35,12 @@ var cslFetcher = {
 cslFetcher.init = function(config){
     if(typeof config == 'undefined'){
         config = {
-            "localesPath" : "./csl-locales/trunk",
-            "cslPath" : "./csl1.0",
-            "parserPath" : "../nodejs/node-o3-xml/lib/o3-xml",
-            "stepPath" : "./step"
+            "localesPath" : "./csl-locales",
+            "cslPath" : "./csl",
         }
     }
     
-    Step = require(config.stepPath);
-    cslFetcher.parser = require(config.parserPath);
+    Step = require('step');
     
     cslFetcher.cslPath = config.cslPath;
     cslFetcher.cslDir = fs.readdirSync(cslFetcher.cslPath);
@@ -194,8 +192,8 @@ cslFetcher.loadStyle = function(style, callback, cargs){
 }
 
 cslFetcher.readDependent = function(xml){
-    var parser = this.parser;
-    var dStyle = parser.parseFromString(xml);
+    var jsdom = require('jsdom');
+    var dStyle = jsdom.jsdom(xml);//parser.parseFromString(xml);
     var linkEls = dStyle.getElementsByTagName("link");
     for(var i = 0; i < linkEls.length; i++){
         if(linkEls[i].getAttribute("rel") == "independent-parent"){
@@ -212,7 +210,7 @@ if (typeof module !== 'undefined' && "exports" in module) {
 /*
 zcite.debug("init cslFetcher");
 cslFetcher.init();
-var xml = fs.readFileSync("./csl1.0/dependent/radiology.csl", 'utf8');
+var xml = fs.readFileSync("./csl/dependent/radiology.csl", 'utf8');
 var independent = cslFetcher.readDependent(xml);
 zcite.debug(cslFetcher.processStyleIdentifier(independent));
 */

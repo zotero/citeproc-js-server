@@ -44,8 +44,7 @@ for(var i = 1; i < args.length; i++){
 }
 
 //load non-builtin modules using paths from config
-var Step = require(zcite.config.stepPath);
-var parser = require(zcite.config.parserPath);
+var Step = require('step');//require(zcite.config.stepPath);
 
 zcite.CSL = require(zcite.config.citeprocmodulePath).CSL;
 zcite.cslFetcher = require(zcite.config.cslFetcherPath).cslFetcher;
@@ -117,6 +116,7 @@ zcite.localesDir = fs.readdirSync(zcite.config.localesPath);
 
 zcite.locales = {};
 for(var i = 0; i < zcite.localesDir.length; i++){
+    if(zcite.localesDir[i].charAt(0) == '.'){ continue; }
     var localeCode = zcite.localesDir[i].slice(8, 13);
     zcite.locales[localeCode] = fs.readFileSync(zcite.config.localesPath + '/' + zcite.localesDir[i], 'utf8');
 }
@@ -250,9 +250,10 @@ zcite.cleanCache = function(){
 
 //precache CSL Engines on startup with style:locale 
 zcite.debug('precaching CSL engines', 5);
-zcite.precache = true;
+zcite.precache = false;
+/*
 Step(
-/*    function fetchStyle(){
+    function fetchStyle(){
         var zcreq = {
             'reqItemsObj':{},
             'styleUrlObj':zcite.cslFetcher.processStyleIdentifier('apsa'),
@@ -291,7 +292,7 @@ Step(
         zcite.createEngine(zcreq);
         return true;
     },
-*/    function fetchStyle(){
+    function fetchStyle(){
         var zcreq = {
             'reqItemsObj':{},
             'styleUrlObj':zcite.cslFetcher.processStyleIdentifier('chicago-author-date'),
@@ -304,7 +305,7 @@ Step(
         zcite.createEngine(zcreq);
         return true;
     },
-/*    function fetchStyle(){
+    function fetchStyle(){
         var zcreq = {
             'reqItemsObj':{},
             'styleUrlObj':zcite.cslFetcher.processStyleIdentifier('chicago-fullnote-bibliography'),
@@ -330,7 +331,7 @@ Step(
         zcite.createEngine(zcreq);
         return true;
     },
-/*    function fetchStyle(){
+    function fetchStyle(){
         var zcreq = {
             'reqItemsObj':{},
             'styleUrlObj':zcite.cslFetcher.processStyleIdentifier('chicago-note'),
@@ -343,7 +344,9 @@ Step(
         zcite.createEngine(zcreq);
         return true;
     },
-*/    function disablePrecache(err, success){
+
+
+    function disablePrecache(err, success){
         zcite.debug("turn precache flag off", 5);
         if(err) throw err;
         zcite.precache = false;
@@ -355,7 +358,7 @@ Step(
         return true;
     }
 );
-    
+*/    
 
 //callback for when engine is fully initialized and ready to process the request
 zcite.runRequest = function(zcreq){
@@ -442,6 +445,7 @@ zcite.configureRequest = function(uriConf){
     config.style = (typeof uriConf.style == 'undefined' ) ? 'chicago-author-date' : uriConf.style;
     //config.cslOutput = (typeof uriConf.csloutput == 'undefined' ) ? 'bibliography' : uriConf.csloutput;
     //config.cslOutput = (typeof uriConf.csloutput == 'undefined' ) ? 'bibliography' : uriConf.csloutput;
+    config.memoryUsage = (typeof uriConf.memoryUsage == 'undefined' ) ? '0' : '1';
     return config;
 }
 
@@ -485,6 +489,15 @@ http.createServer(function (request, response) {
             //make config obj based on query
             var config = zcite.configureRequest(uriObj.parsedQuery);
             zcite.debug(JSON.stringify(config), 4);
+            if(config.memoryUsage == '1'){
+                var memoryUsage = process.memoryUsage();
+                memoryUsage['cachedEngines'] = zcite.cachedEngineCount;
+                console.log("MEMORY USAGE:");
+                console.log(JSON.stringify(memoryUsage));
+                response.writeHead(200);
+                response.end(JSON.stringify(memoryUsage));
+                return;
+            }
             zcreq.config = config;
             //need to keep response in zcreq so async calls stay tied to a request
             zcreq.response = response;

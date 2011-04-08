@@ -110,7 +110,7 @@ CSL_NODEJS.prototype.nodename = function (myxml) {
 	return ret;
 };
 CSL_NODEJS.prototype.attributes = function (myxml) {
-//	zotero.Debug('CSL_NODEJS.attributes');
+	//zotero.Debug('CSL_NODEJS.attributes');
 	var ret, attrs, attr, key, xml, pos, len;
 	ret = new Object();
 	if (myxml && this.hasAttributes(myxml)) {

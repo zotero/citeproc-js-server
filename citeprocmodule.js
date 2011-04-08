@@ -48,7 +48,7 @@
 if (typeof module !== 'undefined' && "exports" in module) {
     var CSL_IS_NODEJS = true;
     var zotero = require("./zoteronode").zotero;
-    var CSL_NODEJS = require("./csl_nodejs").CSL_NODEJS;
+    var CSL_NODEJS = require("./csl_nodejs_jsdom").CSL_NODEJS_JSDOM;
 }
 if (!Array.indexOf) {
 	Array.prototype.indexOf = function (obj) {
@@ -91,11 +91,11 @@ var CSL = {
 	MARK_TRAILING_NAMES: true,
 	POSITION_TEST_VARS: ["position", "first-reference-note-number", "near-note"],
 	AREAS: ["citation", "citation_sort", "bibliography", "bibliography_sort"],
-	MULTI_FIELDS: ["publisher", "publisher-place", "title", "container-title", "collection-title", "institution", "authority"],
+	MULTI_FIELDS: ["publisher", "publisher-place", "title","container-title", "collection-title", "institution", "authority","edition"],
 	CITE_FIELDS: ["first-reference-note-number", "locator"],
 	MINIMAL_NAME_FIELDS: ["literal", "family"],
 	SWAPPING_PUNCTUATION: [".", "!", "?", ":",",",";"],
-	TERMINAL_PUNCTUATION: [".", "!", "?", ":", " "],
+	TERMINAL_PUNCTUATION: [":", ".", "!", "?", " "],
 	SPLICE_PUNCTUATION: [".", "!", "?", ":", ";", ","],
 	NONE: 0,
 	NUMERIC: 1,
@@ -104,7 +104,7 @@ var CSL = {
 	DATE_PARTS: ["year", "month", "day"],
 	DATE_PARTS_ALL: ["year", "month", "day", "season"],
 	DATE_PARTS_INTERNAL: ["year", "month", "day", "year_end", "month_end", "day_end"],
-	NAME_PARTS: ["family", "given", "dropping-particle", "non-dropping-particle", "suffix"],
+	NAME_PARTS: ["family", "given", "dropping-particle", "non-dropping-particle", "suffix", "literal"],
 	DECORABLE_NAME_PARTS: ["given", "family", "suffix"],
 	DISAMBIGUATE_OPTIONS: [
 		"disambiguate-add-names",
@@ -143,8 +143,10 @@ var CSL = {
 	NAME_INITIAL_REGEXP: /^([A-Z\u0080-\u017f\u0400-\u042f])([a-zA-Z\u0080-\u017f\u0400-\u052f]*|)/,
 	ROMANESQUE_REGEXP: /[a-zA-Z\u0080-\u017f\u0400-\u052f\u0386-\u03fb\u1f00-\u1ffe]/,
 	STARTSWITH_ROMANESQUE_REGEXP: /^[&a-zA-Z\u0080-\u017f\u0400-\u052f\u0386-\u03fb\u1f00-\u1ffe]/,
-	ENDSWITH_ROMANESQUE_REGEXP: /[&a-zA-Z\u0080-\u017f\u0400-\u052f\u0386-\u03fb\u1f00-\u1ffe]$/,
+	ENDSWITH_ROMANESQUE_REGEXP: /[.;:&a-zA-Z\u0080-\u017f\u0400-\u052f\u0386-\u03fb\u1f00-\u1ffe]$/,
 	ALL_ROMANESQUE_REGEXP: /^[a-zA-Z\u0080-\u017f\u0400-\u052f\u0386-\u03fb\u1f00-\u1ffe]+$/,
+	VIETNAMESE_SPECIALS: /[\u00c0-\u00c3\u00c8-\u00ca\u00cc\u00cd\u00d2-\u00d5\u00d9\u00da\u00dd\u00e0-\u00e3\u00e8-\u00ea\u00ec\u00ed\u00f2-\u00f5\u00f9\u00fa\u00fd\u0101\u0103\u0110\u0111\u0128\u0129\u0168\u0169\u01a0\u01a1\u01af\u01b0\u1ea0-\u1ef9]/,
+	VIETNAMESE_NAMES: /^(?:(?:[.AaBbCcDdEeGgHhIiKkLlMmNnOoPpQqRrSsTtUuVvXxYy \u00c0-\u00c3\u00c8-\u00ca\u00cc\u00cd\u00d2-\u00d5\u00d9\u00da\u00dd\u00e0-\u00e3\u00e8-\u00ea\u00ec\u00ed\u00f2-\u00f5\u00f9\u00fa\u00fd\u0101\u0103\u0110\u0111\u0128\u0129\u0168\u0169\u01a0\u01a1\u01af\u01b0\u1ea0-\u1ef9]{2,6})(\s+|$))+$/,
 	NOTE_FIELDS_REGEXP: /{:[-a-z]+:[^}]+}/g,
 	NOTE_FIELD_REGEXP: /{:([-a-z]+):([^}]+)}/,
 	DISPLAY_CLASSES: ["block", "left-margin", "right-inline", "indent"],
@@ -220,7 +222,7 @@ var CSL = {
 		ret[ret.length - 1] += str;
 		return ret;
 	},
-	SKIP_WORDS: ["a", "the", "an"],
+	SKIP_WORDS: ["but", "or", "yet", "so", "for", "and", "nor", "a", "an", "the", "at", "by", "from", "in", "into", "of", "on", "to", "with", "up", "down", "as", "via", "onto", "over", "till"],
 	FORMAT_KEY_SEQUENCE: [
 		"@strip-periods",
 		"@font-style",
@@ -229,6 +231,13 @@ var CSL = {
 		"@text-decoration",
 		"@vertical-align",
 		"@quotes"
+	],
+	INSTITUTION_KEYS: [
+		"font-style",
+		"font-variant",
+		"font-weight",
+		"text-decoration",
+		"text-case"
 	],
 	SUFFIX_CHARS: "a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z",
 	ROMAN_NUMERALS: [
@@ -267,7 +276,7 @@ var CSL = {
 		is: "is_IS",
 		it: "it_IT",
 		ja: "ja_JP",
-		kh: "kh_KH",
+		km: "km_KH",
 		ko: "ko_KR",
 		mn: "mn_MN",
 		nb: "nb_NO",
@@ -304,6 +313,44 @@ if ("object" === typeof console && "function" === typeof console.log) {
 	CSL.error = function (str) {
 		throw "CSL error: " + str;
 	};
+}
+CSL.getSortCompare = function () {
+	try {
+		var localeService = Components.classes["@mozilla.org/intl/nslocaleservice;1"]
+			.getService(Components.interfaces.nsILocaleService);
+		var collationFactory = Components.classes["@mozilla.org/intl/collation-factory;1"]
+			.getService(Components.interfaces.nsICollationFactory);
+		var collation = collationFactory.CreateCollation(localeService.getApplicationLocale());
+		var strcmp = function(a, b) {
+			return collation.compareString(1, a, b);
+		}
+		CSL.debug("XXX Using collation");
+	} catch (e) {
+		var strcmp = function (a, b) {
+			return a.localeCompare(b);
+		}
+	}
+	var isKana = /^[\u3040-\u309f\u30a0-\u30ff]/;
+	var sortCompare = function (a, b) {
+		var ak = isKana.exec(a);
+		var bk = isKana.exec(b);
+		if (ak || bk) {
+			if (!ak) {
+				return -1;
+			} else if (!bk) {
+				return 1;
+			} else if (a < b) {
+				return -1;
+			} else if (a > b) {
+				return 1;
+			} else {
+				return 0;
+			}
+		} else {
+			return strcmp(a, b);
+		}
+	}
+	return sortCompare;
 }
 CSL.Output = {};
 CSL.Output.Queue = function (state) {
@@ -486,7 +533,7 @@ CSL.Output.Queue.prototype.append = function (str, tokname) {
 };
 CSL.Output.Queue.prototype.string = function (state, myblobs, blob) {
 	var blobs, ret, blob_delimiter, i, params, blobjr, last_str, last_char, b, use_suffix, qres, addtoret, span_split, j, res, blobs_start, blobs_end, key, pos, len, ppos, llen, ttype, ltype, terminal, leading, delimiters, use_prefix, txt_esc;
-	txt_esc = CSL.Output.Formats[this.state.opt.mode].text_escape;
+	txt_esc = CSL.getSafeEscape(this.state.opt.mode, this.state.tmp.area);
 	blobs = myblobs.slice();
 	ret = [];
 	if (blobs.length === 0) {
@@ -572,7 +619,7 @@ CSL.Output.Queue.prototype.string = function (state, myblobs, blob) {
 				if (["@bibliography", "@display"].indexOf(params[0]) === -1) {
 					continue;
 				}
-				blobs_start = state.fun.decorate[params[0]][params[1]](state, blobs_start);
+				blobs_start = state.fun.decorate[params[0]][params[1]].call(blob, state, blobs_start);
 			}
 		}
 	}
@@ -613,7 +660,7 @@ CSL.Output.Queue.prototype.clearlevel = function () {
 };
 CSL.Output.Queue.prototype.renderBlobs = function (blobs, delim) {
 	var state, ret, ret_last_char, use_delim, i, blob, pos, len, ppos, llen, pppos, lllen, res, str, params, txt_esc;
-	txt_esc = CSL.Output.Formats[this.state.opt.mode].text_escape;
+	txt_esc = CSL.getSafeEscape(this.state.opt.mode, this.state.tmp.area);
 	if (!delim) {
 		delim = "";
 	}
@@ -679,7 +726,7 @@ CSL.Output.Queue.purgeEmptyBlobs = function (myblobs, endOnly) {
 		return;
 	}
 	for (var i = myblobs.length - 1; i > -1; i += -1) {
-		CSL.Output.Queue.purgeEmptyBlobs(myblobs[i].blobs);		
+		CSL.Output.Queue.purgeEmptyBlobs(myblobs[i].blobs, endOnly);
 	}
 	for (var i = myblobs.length - 1; i > -1; i += -1) {
 		if (!myblobs[i].blobs.length) {
@@ -690,7 +737,8 @@ CSL.Output.Queue.purgeEmptyBlobs = function (myblobs, endOnly) {
 			for (j = 0, jlen = tmpblobs.length; j < jlen; j += 1) {
 				myblobs.push(tmpblobs[j]);
 			}
-		} else if (endOnly) {
+		}
+		if (endOnly) {
 			break;
 		}
 	}
@@ -752,7 +800,8 @@ CSL.Output.Queue.adjustPunctuation = function (state, myblobs, stk, finish) {
 		if (suffix) {
 			if (blob && 
 				TERMS.indexOf(myblobs.slice(-1)) > -1 &&
-				TERMS.indexOf(suffix) > -1) {
+				TERMS.slice(1).indexOf(suffix) > -1 &&
+				blob.strings.suffix !== " ") {
 					blob.strings.suffix = blob.strings.suffix.slice(1);
 			}
 		}
@@ -849,7 +898,7 @@ CSL.Output.Queue.adjustPunctuation = function (state, myblobs, stk, finish) {
 			if (i === (myblobs.length - 1)) {
 				if (suffix) {
 					if (doblob.strings.suffix && 
-						 (TERMS.indexOf(suffix) > -1 &&
+						(TERMS.slice(1).indexOf(suffix) > -1 &&
 						  TERMS.indexOf(doblob.strings.suffix.slice(-1)) > -1)) {
 							blob.strings.suffix = blob.strings.suffix.slice(1);
 					}
@@ -1072,7 +1121,7 @@ CSL.compareAmbigConfig = function(a, b) {
 	}
 	return 0;
 };
-CSL.cloneAmbigConfig = function (config, oldconfig, itemID, tainters) {
+CSL.cloneAmbigConfig = function (config, oldconfig, tainters) {
 	var ret, param, pos, ppos, len, llen;
 	ret = {};
 	ret.names = [];
@@ -1107,7 +1156,7 @@ CSL.cloneAmbigConfig = function (config, oldconfig, itemID, tainters) {
 		if (tainters.length == 2 || (oldconfig && oldconfig.year_suffix !== config.year_suffix)) {
 			for (pos = 0, len = tainters.length; pos < len; pos += 1) {
 				var oldYS = this.registry.registry[tainters[pos].id].disambig.year_suffix;
-				if (tainters && (false === oldYS || oldYS !== pos)) {
+				if (tainters && (false === oldYS || oldYS != pos)) {
 					this.tmp.taintedItemIDs[tainters[pos].id] = true;
 				}
 			}
@@ -1175,6 +1224,7 @@ CSL.expandMacro = function (macro_key_token) {
 	this.build.macro_stack.pop();
 };
 CSL.XmlToToken = function (state, tokentype) {
+	zotero.Debug("CSL.XmlToToken ", 3);
 	var name, txt, attrfuncs, attributes, decorations, token, key, target;
 	name = state.sys.xml.nodename(this);
 	if (state.build.skip && state.build.skip !== name) {
@@ -1216,8 +1266,8 @@ CSL.XmlToToken = function (state, tokentype) {
 	target = state[state.build.area].tokens;
 	CSL.Node[name].build.call(token, state, target);
 };
-CSL.dateParser = function (txt) {
-	var jiy_list, jiy, jiysplitter, jy, jmd, jr, pos, key, val, yearlast, yearfirst, number, rangesep, fuzzychar, chars, rex, rexdash, rexdashslash, rexslashdash, seasonstrs, seasonrexes, seasonstr, monthstrs, monthstr, monthrexes, seasonrex, len, jiymatchstring, jiymatcher;
+CSL.DateParser = function (txt) {
+	var jiy_list, jiy, jiysplitter, jy, jmd, jr, pos, key, val, yearlast, yearfirst, number, rangesep, fuzzychar, chars, rex, rexdash, rexdashslash, rexslashdash, seasonstrs, seasonrexes, seasonstr, monthstrs, monthstr, mrexes, seasonrex, len, jiymatchstring, jiymatcher;
 	jiy_list = [
 		["\u660E\u6CBB", 1867],
 		["\u5927\u6B63", 1911],
@@ -1261,17 +1311,97 @@ CSL.dateParser = function (txt) {
 		seasonrex = new RegExp(seasonstrs[pos] + ".*");
 		seasonrexes.push(seasonrex);
 	}
-	monthstrs = "jan feb mar apr may jun jul aug sep oct nov dec spr sum fal win spr sum";
-	monthstrs = monthstrs.split(" ");
-	monthrexes = [];
-	len = monthstrs.length;
-	for (pos = 0; pos < len; pos += 1) {
-		monthstr = monthstrs[pos];
-		rex = new RegExp(monthstr);
-		monthrexes.push(rex);
+	this.mstrings = "january february march april may june july august september october november december spring summer fall winter spring summer";
+	this.mstrings = this.mstrings.split(" ");
+	this.setOrderDayMonth = function() {
+		this.monthguess = 1;
+		this.dayguess = 0;
+	}
+	this.setOrderMonthDay = function() {
+		this.monthguess = 0;
+		this.dayguess = 1;
+	}
+	this.setOrderMonthDay();
+	this.resetMonths = function() {
+		this.msets = [];
+		for (var i = 0, ilen = this.mstrings.length; i < ilen; i += 1) {
+			this.msets.push([this.mstrings[i]]);
+		}
+		this.mabbrevs = [];
+		for (var i = 0, ilen = this.msets.length; i < ilen; i += 1) {
+			this.mabbrevs.push([]);
+			for (var j = 0, jlen = this.msets[i].length; j < jlen; j += 1) {
+				this.mabbrevs[i].push(this.msets[i][0].slice(0, 3));
+			}
+		}
+		this.mrexes = [];
+		for (var i = 0, ilen = this.mabbrevs.length; i < ilen; i += 1) {
+			this.mrexes.push(new RegExp("(?:" + this.mabbrevs[i].join("|") + ")"));
+		}
+	}
+	this.resetMonths();
+	this.addMonths = function(lst) {
+		if ("string" === typeof lst) {
+			lst = lst.split(/\s+/);
+		}
+		if (lst.length !== 12 && lst.length !== 16) {
+			CSL.debug("month [+season] list of "+lst.length+", expected 12 or 16. Ignoring.");
+			return;
+		}
+		var othermatch = [];
+		var thismatch = [];
+		for (var i = 0, ilen = lst.length; i < ilen; i += 1) {
+			var abbrevlen = false;
+			var skip = false;
+			var insert = 3;
+			var extend = {};
+			for (var j = 0, jlen = this.mabbrevs.length; j < jlen; j += 1) {
+				extend[j] = {};
+				if (j === i) {
+					for (var k = 0, klen = this.mabbrevs[i].length; k < klen; k += 1) {
+						if (this.mabbrevs[i][k] === lst[i].slice(0, this.mabbrevs[i][k].length)) {
+							skip = true;
+							break;
+						}
+					}
+				} else {
+					for (var k = 0, klen = this.mabbrevs[j].length; k < klen; k += 1) {
+						abbrevlen = this.mabbrevs[j][k].length;
+						if (this.mabbrevs[j][k] === lst[i].slice(0, abbrevlen)) {
+							while (this.msets[j][k].slice(0, abbrevlen) === lst[i].slice(0, abbrevlen)) {
+								if (abbrevlen > lst[i].length || abbrevlen > this.msets[j][k].length) {
+									CSL.debug("unable to disambiguate month string in date parser: "+lst[i]);
+									break;
+								} else {
+									abbrevlen += 1;
+								}
+							}
+							insert = abbrevlen;
+							extend[j][k] = abbrevlen;
+						}
+					}
+				}
+				for (var j in extend) {
+					j = parseInt(j, 10);
+					for (var k in extend[j]) {
+						k = parseInt(k, 10);
+						abbrevlen = extend[j][k];
+						this.mabbrevs[j][k] = this.msets[j][k].slice(0, abbrevlen);
+					}
+				}
+			}
+			if (!skip) {
+				this.msets[i].push(lst[i]);
+				this.mabbrevs[i].push(lst[i].slice(0, insert));
+			}
+		}
+		this.mrexes = [];
+		for (var i = 0, ilen = this.mabbrevs.length; i < ilen; i += 1) {
+			this.mrexes.push(new RegExp("(?:" + this.mabbrevs[i].join("|") + ")"));
+		}
 	}
 	this.parse = function (txt) {
-		var slash, dash, lst, l, m, number, note, thedate, slashcount, range_delim, date_delim, ret, delim_pos, delims, isrange, suff, date, breakme, item, pos, delim, ppos, element, pppos, len, llen, lllen, mm, slst, mmpos;
+		var slash, dash, lst, l, m, number, note, thedate, slashcount, range_delim, date_delim, ret, delim_pos, delims, isrange, suff, date, breakme, item, delim, element, mm, slst, mmpos, i, ilen, j, jlen, k, klen;
 		m = txt.match(jmd);
 		if (m) {
 			txt = txt.replace(jy, "");
@@ -1351,13 +1481,11 @@ CSL.dateParser = function (txt) {
 			delims.push([0, ret.length]);
 		}
 		suff = "";
-		len = delims.length;
-		for (pos = 0; pos < len; pos += 1) {
-			delim = delims[pos];
+		for (i = 0, ilen = delims.length; i < ilen; i += 1) {
+			delim = delims[i];
 			date = ret.slice(delim[0], delim[1]);
-			llen = date.length;
-			for (ppos = 0; ppos < llen; ppos += 1) {
-				element = date[ppos];
+			for (j = 0, jlen = date.length; j < jlen; j += 1) {
+				element = date[j];
 				if (element.indexOf(date_delim) > -1) {
 					this.parseNumericDate(thedate, date_delim, suff, element);
 					continue;
@@ -1367,10 +1495,9 @@ CSL.dateParser = function (txt) {
 					continue;
 				}
 				breakme = false;
-				lllen = monthrexes.length;
-				for (pppos = 0; pppos < lllen; pppos += 1) {
-					if (element.toLocaleLowerCase().match(monthrexes[pppos])) {
-						thedate[("month" + suff)] = "" + (parseInt(pppos, 10) + 1);
+				for (k = 0, klen = this.mrexes.length; k < klen; k += 1) {
+					if (element.toLocaleLowerCase().match(this.mrexes[k])) {
+						thedate[("month" + suff)] = "" + (parseInt(k, 10) + 1);
 						breakme = true;
 						break;
 					}
@@ -1393,9 +1520,9 @@ CSL.dateParser = function (txt) {
 				}
 				breakme = false;
 				lllen = seasonrexes.length;
-				for (pppos = 0; pppos < lllen; pppos += 1) {
-					if (element.toLocaleLowerCase().match(seasonrexes[pppos])) {
-						thedate[("season" + suff)] = "" + (parseInt(pppos, 10) + 1);
+				for (k = 0, klen = seasonrexes.length; k < klen; k += 1) {
+					if (element.toLocaleLowerCase().match(seasonrexes[k])) {
+						thedate[("season" + suff)] = "" + (parseInt(k, 10) + 1);
 						breakme = true;
 						break;
 					}
@@ -1423,9 +1550,8 @@ CSL.dateParser = function (txt) {
 			suff = "_end";
 		}
 		if (isrange) {
-			len = CSL.DATE_PARTS_ALL.length;
-			for (pos = 0; pos < len; pos += 1) {
-				item = CSL.DATE_PARTS_ALL[pos];
+			for (j = 0, jlen = CSL.DATE_PARTS_ALL.length; j < jlen; j += 1) {
+				item = CSL.DATE_PARTS_ALL[j];
 				if (thedate[item] && !thedate[(item + "_end")]) {
 					thedate[(item + "_end")] = thedate[item];
 				} else if (!thedate[item] && thedate[(item + "_end")]) {
@@ -1436,43 +1562,73 @@ CSL.dateParser = function (txt) {
 		if (!thedate.year) {
 			thedate = { "literal": txt };
 		}
+		if (this.use_array) {
+			this.toArray(thedate);			
+		}
 		return thedate;
 	};
+	this.returnAsArray = function () {
+		this.use_array = true;
+	}
+	this.returnAsKeys = function () {
+		this.use_array = false;
+	}
+	this.toArray = function (thedate) {
+		thedate["date-parts"] = [];
+		thedate["date-parts"].push([]);
+		var slicelen = 0;
+		for (var i = 0, ilen = 3; i < ilen; i += 1) {
+			var part = ["year", "month", "day"][i];
+			if (!thedate[part]) {
+				break;
+			}
+			slicelen += 1;
+			thedate["date-parts"][0].push(thedate[part]);
+			delete thedate[part];
+		}
+		for (var i = 0, ilen = slicelen; i < ilen; i += 1) {
+			var part = ["year_end", "month_end", "day_end"][i];
+			if (thedate[part] && thedate["date-parts"].length === 1) {
+				thedate["date-parts"].push([]);
+			}
+			thedate["date-parts"][1].push(thedate[part]);
+			delete thedate[part];
+		}
+	}
 	this.parseNumericDate = function (ret, delim, suff, txt) {
 		var lst, pos, len;
 		lst = txt.split(delim);
-		len = lst.length;
-		for (pos = 0; pos < len; pos += 1) {
-			if (lst[pos].length === 4) {
-				ret[("year" + suff)] = lst[pos].replace(/^0*/, "");
-				if (!pos) {
+		for (i = 0, ilen = lst.length; i < ilen; i += 1) {
+			if (lst[i].length === 4) {
+				ret[("year" + suff)] = lst[i].replace(/^0*/, "");
+				if (!i) {
 					lst = lst.slice(1);
 				} else {
-					lst = lst.slice(0, pos);
+					lst = lst.slice(0, i);
 				}
 				break;
 			}
 		}
-		len = lst.length;
-		for (pos = 0; pos < len; pos += 1) {
-			lst[pos] = parseInt(lst[pos], 10);
+		for (i = 0, ilen = lst.length; i < ilen; i += 1) {
+			lst[i] = parseInt(lst[i], 10);
 		}
 		if (lst.length === 1) {
 			ret[("month" + suff)] = "" + lst[0];
 		} else if (lst.length === 2) {
-			if (lst[0] > 12) {
-				ret[("month" + suff)] = "" + lst[1];
-				ret[("day" + suff)] = "" + lst[0];
+			if (lst[this.monthguess] > 12) {
+				ret[("month" + suff)] = "" + lst[this.dayguess];
+				ret[("day" + suff)] = "" + lst[this.monthguess];
 			} else {
-				ret[("month" + suff)] = "" + lst[0];
-				ret[("day" + suff)] = "" + lst[1];
+				ret[("month" + suff)] = "" + lst[this.monthguess];
+				ret[("day" + suff)] = "" + lst[this.dayguess];
 			}
 		}
 	};
 };
 CSL.Engine = function (sys, style, lang, forceLang) {
+	zotero.Debug('==========1===========');
 	var attrs, langspec, localexml, locale;
-	this.processor_version = "1.0.92";
+	this.processor_version = "1.0.143";
 	this.csl_version = "1.0";
 	this.sys = sys;
 	this.sys.xml = new CSL.System.Xml.Parsing();
@@ -1498,7 +1654,9 @@ CSL.Engine = function (sys, style, lang, forceLang) {
 	this.bibliography = new CSL.Engine.Bibliography();
 	this.output = new CSL.Output.Queue(this);
 	this.dateput = new CSL.Output.Queue(this);
+	zotero.Debug('==========20===========');
 	this.cslXml = this.sys.xml.makeXml(style);
+	zotero.Debug('==========25===========');
 	this.sys.xml.addInstitutionNodes(this.cslXml);
 	attrs = this.sys.xml.attributes(this.cslXml);
 	if ("undefined" === typeof attrs["@sort-separator"]) {
@@ -1507,10 +1665,12 @@ CSL.Engine = function (sys, style, lang, forceLang) {
 	if ("undefined" === typeof attrs["@name-delimiter"]) {
 		this.sys.xml.setAttribute(this.cslXml, "name-delimiter", ", ");
 	}
+	zotero.Debug('==========30===========');
 	this.opt["initialize-with-hyphen"] = true;
 	this.setStyleAttributes();
 	CSL.Util.Names.initNameSlices(this);
 	this.opt.xclass = sys.xml.getAttributeValue(this.cslXml, "class");
+	zotero.Debug('==========35===========');
 	if (lang) {
 		lang = lang.replace("_", "-");
 	}
@@ -1523,6 +1683,7 @@ CSL.Engine = function (sys, style, lang, forceLang) {
 	if (lang && !forceLang && this.opt["default-locale"][0]) {
 		lang = this.opt["default-locale"][0];
 	}
+	zotero.Debug('==========40===========');
 	if (this.opt["default-locale"].length === 0) {
 		if (!lang) {
 			lang = "en-US";
@@ -1532,24 +1693,35 @@ CSL.Engine = function (sys, style, lang, forceLang) {
 	if (!lang) {
 		lang = this.opt["default-locale"][0];
 	}
+	zotero.Debug('==========45===========');
 	langspec = CSL.localeResolve(lang);
 	this.opt.lang = langspec.best;
 	this.opt["default-locale"][0] = langspec.best;
 	this.locale = {};
 	this.localeConfigure(langspec);
+	zotero.Debug('==========49===========');
 	this.buildTokenLists("citation");
+	zotero.Debug('==========50===========');
 	this.buildTokenLists("bibliography");
 	this.configureTokenLists();
 	this.registry = new CSL.Registry(this);
 	this.disambiguate = new CSL.Disambiguation(this);
 	this.splice_delimiter = false;
-	this.fun.dateparser = new CSL.dateParser();
+	this.fun.dateparser = new CSL.DateParser();
+	zotero.Debug('==========55===========');
 	this.fun.flipflopper = new CSL.Util.FlipFlopper(this);
+	zotero.Debug('==========56===========');
 	this.setCloseQuotesArray();
+	zotero.Debug('==========57===========');
 	this.fun.ordinalizer.init(this);
+	zotero.Debug('==========58===========');
 	this.fun.long_ordinalizer.init(this);
+	zotero.Debug('==========59===========');
 	this.fun.page_mangler = CSL.Util.PageRangeMangler.getFunction(this);
+	zotero.Debug('==========60===========');
 	this.setOutputFormat("html");
+	zotero.Debug('==========61===========');
+	
 };
 CSL.Engine.prototype.setCloseQuotesArray = function () {
 	var ret;
@@ -1561,6 +1733,7 @@ CSL.Engine.prototype.setCloseQuotesArray = function () {
 	this.opt.close_quotes_array = ret;
 };
 CSL.Engine.prototype.buildTokenLists = function (area) {
+	zotero.Debug("buildTokenLists");
 	var area_nodes, navi;
 	area_nodes = this.sys.xml.getNodesByName(this.cslXml, area);
 	if (!this.sys.xml.getNodeValue(area_nodes)) {
@@ -1582,6 +1755,7 @@ CSL.Engine.prototype.setStyleAttributes = function () {
 	}
 };
 CSL.buildStyle  = function (navi) {
+	zotero.Debug("CSL.buildStyle");
 	if (navi.getkids()) {
 		CSL.buildStyle.call(this, navi);
 	} else {
@@ -1597,6 +1771,7 @@ CSL.buildStyle  = function (navi) {
 	}
 };
 CSL.Engine.prototype.getNavi = function (state, myxml) {
+	zotero.Debug("getNavi");
 	this.sys = state.sys;
 	this.state = state;
 	this.nodeList = [];
@@ -1622,67 +1797,43 @@ CSL.Engine.prototype.getNavi.prototype.getbro = function () {
 	}
 };
 CSL.Engine.prototype.getNavi.prototype.getkids = function () {
+	zotero.Debug("getNavi.getkids");
 	var currnode, sneakpeek, pos, node, len;
 	currnode = this.nodeList[this.depth][1][this.nodeList[this.depth][0]];
 	sneakpeek = this.sys.xml.children(currnode);
 	if (this.sys.xml.numberofnodes(sneakpeek) === 0) {
+		zotero.Debug("=====getkids 1=====", 3);
 		CSL.XmlToToken.call(currnode, this.state, CSL.SINGLETON);
+		zotero.Debug("returning from getkids", 3);
 		return false;
 	} else {
+		zotero.Debug("=====getkids 2=====", 3);
 		for (pos in sneakpeek) {
 			if (true) {
+				zotero.Debug("=====getkids 3=====", 3);
 				node = sneakpeek[pos];
+				zotero.Debug("=====getkids 4=====", 3);
 				if ("date" === this.sys.xml.nodename(node)) {
+					zotero.Debug("=====getkids 5=====", 3);
 					currnode = CSL.Util.fixDateNode.call(this, currnode, pos, node);
+					zotero.Debug("=====getkids 6=====", 3);
 					sneakpeek = this.sys.xml.children(currnode);
 				}
 			}
 		}
+		zotero.Debug("=====getkids 7=====", 3);
 		CSL.XmlToToken.call(currnode, this.state, CSL.START);
+		zotero.Debug("=====getkids 8=====", 3);
 		this.depth += 1;
+		zotero.Debug("=====getkids 9=====", 3);
 		this.nodeList.push([0, sneakpeek]);
+		zotero.Debug("returning from getkids", 3);
 		return true;
 	}
 };
 CSL.Engine.prototype.getNavi.prototype.getNodeListValue = function () {
 	return this.nodeList[this.depth][1];
 };
-CSL.Engine.prototype.setOutputFormat = function (mode) {
-	this.opt.mode = mode;
-	this.fun.decorate = CSL.Mode(mode);
-	if (!this.output[mode]) {
-		this.output[mode] = {};
-		this.output[mode].tmp = {};
-	}
-};
-CSL.Engine.prototype.setLangTagsForCslSort = function (tags) {
-	var i, ilen;
-	this.opt['locale-sort'] = [];
-	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
-		this.opt['locale-sort'].push(tags[i]);
-	}
-}
-CSL.Engine.prototype.setLangTagsForCslNameTransliteration = function (tags) {
-	var i, ilen;
-	this.opt['locale-name'] = [];
-	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
-		this.opt['locale-name'].push(tags[i]);
-	}
-}
-CSL.Engine.prototype.setLangTagsForCslTitleTransliteration = function (tags) {
-	var i, ilen;
-	this.opt['locale-pri'] = [];	
-	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
-		this.opt['locale-pri'].push(tags[i]);
-	}
-}
-CSL.Engine.prototype.setLangTagsForCslTranslation = function (tags) {
-	var i, ilen;
-	this.opt['locale-sec'] = [];
-	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
-		this.opt['locale-sec'].push(tags[i]);
-	}
-}
 CSL.Engine.prototype.getTerm = function (term, form, plural, gender, loose) {
 	var ret = CSL.Engine.getField(CSL.LOOSE, this.locale[this.opt.lang].terms, term, form, plural, gender);
 	if (typeof ret === "undefined") {
@@ -1795,96 +1946,18 @@ CSL.Engine.prototype.configureTokenLists = function () {
 	this.version = CSL.version;
 	return this.state;
 };
-CSL.Engine.prototype.getNameSubFields = function (names) {
-	var i, j, k, count, ret, mode, use_static_ordering, name, newname, addme, updateme, part, o, p, m, newopt, ilen, jlen, klen, key, str, lang;
-	count = -1;
-	ret = [];
-	mode = "locale-name";
-	use_static_ordering = false;
-	if (this.tmp.area.slice(-5) === "_sort") {
-		mode = "locale-sort";
-	}
-	for (i = 0, ilen = names.length; i < ilen; i += 1) {
-		newname = {};
-		for (key in names[i]) {
-			if (names[i].hasOwnProperty(key)) {
-				newname[key] = names[i][key];
-			}
-		}
-		if (newname.given && !newname.family) {
-			newname.family = "";
-		} else if (newname.family && !newname.given) {
-			newname.given = "";
-		}
-		addme = true;
-		updateme = false;
-		for (j = 0, jlen = CSL.MINIMAL_NAME_FIELDS.length; j < jlen; j += 1) {
-			part = CSL.MINIMAL_NAME_FIELDS[j];
-			p = newname[part];
-			if (p) {
-				if (newname[part].length && newname[part][0] !== ":") {
-					if (newname["static-ordering"]) {
-						use_static_ordering = true;
-					} else if (!newname[part].match(CSL.ROMANESQUE_REGEXP)) {
-						use_static_ordering = true;
-					} else {
-						use_static_ordering = false;
-					}
-				}
-				newname["static-ordering"] = use_static_ordering;
-				m = p.match(/^(:[\-a-zA-Z0-9]+:\s+)/);
-				if (m) {
-					str = p.slice(m[1].length);
-					lang = m[1].slice(1).replace(/:\s+$/, "");
-					addme = false;
-					for (k = 0, klen = this.opt[mode].length; k < klen; k += 1) {
-						o = this.opt[mode][k];
-						if (lang === o) {
-							updateme = true;
-							newname[part] = str;
-							if (lang.indexOf("-") === -1) {
-								if (newname[part].match(CSL.ROMANESQUE_REGEXP)) {
-									newname["static-ordering"] = false;
-								}
-							}
-							break;
-						}
-					}
-				}
-			}
-		}
-		if (addme) {
-			ret.push(newname);
-			count += 1;
-		} else if (updateme) {
-			for (key in newname) {
-				if (newname.hasOwnProperty(key)) {
-					ret[count][key] = newname[key];
-				}
-			}
-		}
-		if (!newname.literal && !newname.given && newname.family) {
-			newname.literal = newname.family;
-		}
-		if (newname.literal) {
-			delete newname.family;
-			delete newname.given;
-		}
-	}
-	return ret;
-};
 CSL.Engine.prototype.retrieveItems = function (ids) {
 	var ret, pos, len;
 	ret = [];
 	len = ids.length;
 	for (pos = 0; pos < len; pos += 1) {
-		ret.push(this.retrieveItem(ids[pos]));
+		ret.push(this.retrieveItem("" + ids[pos]));
 	}
 	return ret;
 };
 CSL.Engine.prototype.retrieveItem = function (id) {
 	var Item, m, pos, len, mm;
-	Item = this.sys.retrieveItem(id);
+	Item = this.sys.retrieveItem("" + id);
 	if (Item.note) {
 		m = CSL.NOTE_FIELDS_REGEXP.exec(Item.note);
 		if (m) {
@@ -1929,7 +2002,8 @@ CSL.Engine.prototype.dateParseArray = function (date_obj) {
 	return ret;
 };
 CSL.Engine.prototype.setOpt = function (token, name, value) {
-	if (token.name === "style") {
+	zotero.Debug("CSL.Engine.setOpt " + token.name);
+	if (token.name.toLowerCase() === "cslstyle") {
 		this.opt[name] = value;
 	} else if (["citation", "bibliography"].indexOf(token.name) > -1) {
 		this[token.name].opt[name] = value;
@@ -1949,6 +2023,63 @@ CSL.Engine.prototype.fixOpt = function (token, name, localname) {
 		}
 	}
 };
+CSL.Engine.prototype.setOutputFormat = function (mode) {
+	this.opt.mode = mode;
+	this.fun.decorate = CSL.Mode(mode);
+	if (!this.output[mode]) {
+		this.output[mode] = {};
+		this.output[mode].tmp = {};
+	}
+};
+CSL.Engine.prototype.setLangTagsForCslSort = function (tags) {
+	var i, ilen;
+	this.opt['locale-sort'] = [];
+	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
+		this.opt['locale-sort'].push(tags[i]);
+	}
+}
+CSL.Engine.prototype.setLangTagsForCslTransliteration = function (tags) {
+	var i, ilen;
+	this.opt['locale-pri'] = [];	
+	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
+		this.opt['locale-pri'].push(tags[i]);
+	}
+}
+CSL.Engine.prototype.setLangTagsForCslTranslation = function (tags) {
+	var i, ilen;
+	this.opt['locale-sec'] = [];
+	for (i = 0, ilen = tags.length; i < ilen; i += 1) {
+		this.opt['locale-sec'].push(tags[i]);
+	}
+};
+CSL.Engine.prototype.setOriginalCreatorNameFormsOption = function (arg) {
+	if (arg) {
+		this.opt["locale-show-original-names"] = true;
+	} else {
+		this.opt["locale-show-original-names"] = false;
+	}
+};
+CSL.Engine.prototype.setOriginalCreatorNameFormatOption = function (arg) {
+	if (arg) {
+		this.opt["locale-use-original-name-format"] = true;
+	} else {
+		this.opt["locale-use-original-name-format"] = false;
+	}
+};
+CSL.Engine.prototype.setSuppressTitleTransliterationOption = function (arg) {
+	if (arg) {
+		this.opt["locale-suppress-title-transliteration"] = true;
+	} else {
+		this.opt["locale-suppress-title-transliteration"] = false;
+	}
+};
+CSL.Engine.prototype.setAutoVietnameseNamesOption = function (arg) {
+	if (arg) {
+		this.opt["auto-vietnamese-names"] = true;
+	} else {
+		this.opt["auto-vietnamese-names"] = false;
+	}
+};
 CSL.Engine.Opt = function () {
 	this.has_disambiguate = false;
 	this.mode = "html";
@@ -1956,8 +2087,8 @@ CSL.Engine.Opt = function () {
 	this["locale-sort"] = [];
 	this["locale-pri"] = [];
 	this["locale-sec"] = [];
-	this["locale-name"] = [];
 	this["default-locale"] = [];
+	this["locale-use-original-name-format"] = false;
 	this["noun-genders"] = {};
 	this.update_mode = CSL.NONE;
 	this.bib_mode = CSL.NONE;
@@ -1982,7 +2113,7 @@ CSL.Engine.Tmp = function () {
 	this.area = "citation";
 	this.can_substitute = new CSL.Stack(0, CSL.LITERAL);
 	this.element_rendered_ok = false;
-	this.element_trace = new CSL.Stack("style");
+	this.element_trace = new CSL.Stack("cslstyle");
 	this.nameset_counter = 0;
 	this.term_sibling = new CSL.Stack([false, false, false], CSL.LITERAL);
 	this.term_predecessor = false;
@@ -2098,42 +2229,73 @@ CSL.Engine.prototype.setCitationId = function (citation, force) {
 				id += -1;
 			}
 		}
-		ret = id;
+		ret = "" + id;
 	}
 	this.registry.citationreg.citationById[citation.citationID] = citation;
 	return ret;
 };
 CSL.Engine.prototype.restoreProcessorState = function (citations) {
-	var pos, len, ppos, llen, item, Item, newitem, citationList, itemList, sortedItems;
+	var item, Item, newitem, citationList, itemList, sortedItems;
 	citationList = [];
 	itemList = [];
 	if (!citations) {
 		citations = [];
 	}
-	for (pos = 0, len = citations.length; pos < len; pos += 1) {
+	var indexNumbers = [];
+	var citationIds = {};
+	for (var i = 0, ilen = citations.length; i < ilen; i += 1) {
+		if (citationIds[citations[i].citationID]) {
+			this.setCitationId(citations[i], true);
+		}
+		citationIds[citations[i].citationID] = true;
+		indexNumbers.push(citations[i].properties.index);
+	}
+	var oldCitations = citations.slice();
+	oldCitations.sort(
+	    function (a,b) {
+			if (a.properties.index < b.properties.index) {
+				return -1;
+			} else if (a.properties.index > b.properties.index) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+	);
+	for (var i = 0, ilen = oldCitations.length; i < ilen; i += 1) {
+		oldCitations[i].properties.index = i;
+	}
+	for (var i = 0, ilen = oldCitations.length; i < ilen; i += 1) {
 		sortedItems = [];
-		for (ppos = 0, len = citations[pos].citationItems.length; ppos < llen; ppos += 1) {
-			item = citations[pos].citationItems[ppos];
-			Item = this.retrieveItem(item.id);
+		for (var j = 0, jlen = oldCitations[i].citationItems.length; j < jlen; j += 1) {
+			item = oldCitations[i].citationItems[j];
+			if ("undefined" === typeof item.sortkeys) {
+				item.sortkeys = [];
+			}
+			Item = this.retrieveItem("" + item.id);
 			newitem = [Item, item];
 			sortedItems.push(newitem);
-			citations[pos].citationItems[ppos].item = Item;
-			itemList.push(item.id);
+			oldCitations[i].citationItems[j].item = Item;
+			itemList.push("" + item.id);
 		}
-		if (!citations[pos].properties.unsorted) {
+		if (!oldCitations[i].properties.unsorted) {
 			sortedItems.sort(this.citation.srt.compareCompositeKeys);
 		}
-		citations[pos].sortedItems = sortedItems;
-		this.registry.citationreg.citationById[citations[pos].citationID] = citations[pos];
-		citationList.push([citations[pos].citationID, citations[pos].properties.noteIndex]);
+		oldCitations[i].sortedItems = sortedItems;
+		this.registry.citationreg.citationById[oldCitations[i].citationID] = oldCitations[i];
 	}
 	this.updateItems(itemList);
+	for (var i = 0, ilen = citations.length; i < ilen; i += 1) {
+		citationList.push(["" + citations[i].citationID, citations[i].properties.noteIndex]);
+	}
+	var ret = [];
 	if (citations && citations.length) {
-		this.processCitationCluster(citations[0], [], citationList.slice(1));
+		ret = this.processCitationCluster(citations[0], [], citationList.slice(1));
 	} else {
 		this.registry = new CSL.Registry(this);
 		this.tmp = new CSL.Engine.Tmp();
 	}
+	return ret;
 };
 CSL.Engine.prototype.updateItems = function (idList, nosort) {
 	var debug = false;
@@ -2308,25 +2470,26 @@ CSL.getBibliographyEntries = function (bibsection) {
 		bib_entry = new CSL.Token("group", CSL.START);
 		bib_entry.decorations = [["@bibliography", "entry"]].concat(this[this.build.area].opt.layout_decorations);
 		this.output.startTag("bib_entry", bib_entry);
-		sortedItems = [[{id: item.id}, item]];
+		this.output.current.value().item_id = item.id;
+		sortedItems = [[{id: "" + item.id}, item]];
 		entry_item_ids = [];
 		if (this.registry.registry[item.id].master) {
 			collapse_parallel = true;
 			this.parallel.StartCitation(sortedItems);
 			this.output.queue[0].strings.delimiter = ", ";
-			entry_item_ids.push(CSL.getCite.call(this, item));
+			entry_item_ids.push("" + CSL.getCite.call(this, item));
 			skips[item.id] = true;
 			siblings = this.registry.registry[item.id].siblings;
 			for (ppos = 0, llen = siblings.length; ppos < llen; ppos += 1) {
 				i = this.registry.registry[item.id].siblings[ppos];
 				eyetem = this.retrieveItem(i);
-				entry_item_ids.push(CSL.getCite.call(this, eyetem));
+				entry_item_ids.push("" + CSL.getCite.call(this, eyetem));
 				skips[eyetem.id] = true;
 			}
 			this.parallel.ComposeSet();
 			this.parallel.PruneOutputQueue();
 		} else if (!this.registry.registry[item.id].siblings) {
-			entry_item_ids.push(CSL.getCite.call(this, item));
+			entry_item_ids.push("" + CSL.getCite.call(this, item));
 		}
 		entry_item_data.push("");
 		this.tmp.bibliography_pos += 1;
@@ -2377,7 +2540,7 @@ CSL.Engine.prototype.appendCitationCluster = function (citation) {
 	len = this.registry.citationreg.citationByIndex.length;
 	for (pos = 0; pos < len; pos += 1) {
 		c = this.registry.citationreg.citationByIndex[pos];
-		citationsPre.push([c.citationID, c.properties.noteIndex]);
+		citationsPre.push(["" + c.citationID, c.properties.noteIndex]);
 	}
 	return this.processCitationCluster(citation, citationsPre, [])[1];
 };
@@ -2387,18 +2550,29 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	this.tmp.citation_errors = [];
 	return_data = {"bibchange": false};
 	this.registry.return_data = return_data;
+	if (citation) {
+		CSL.debug("citationID received by processCitationCluster(): ("+citation.citationID+")");
+	} else {
+		CSL.error("nil citation received by processCitationCluster()");
+	}
 	this.setCitationId(citation);
+	if (citation) {
+		CSL.debug("  citationID after setCitationId(): ("+citation.citationID+")");
+		CSL.debug("  citationreg.citationById object for "+citation.citationID+": ("+this.registry.citationreg.citationById[citation.citationID]+")");
+	} else {
+		CSL.error("  nil citation after setCitationID()");
+	}
 	if (flag === CSL.PREVIEW) {
 		var oldCitationList = this.registry.citationreg.citationByIndex.slice();
 		var oldItemList = this.registry.reflist.slice();
-		var newCitationList = citationsPre.concat([[citation.citationID, citation.properties.noteIndex]]).concat(citationsPost);
+		var newCitationList = citationsPre.concat([["" + citation.citationID, citation.properties.noteIndex]]).concat(citationsPost);
 		var newItemIds = {};
 		var newItemIdsList = [];
 		for (pos = 0, len = newCitationList.length; pos < len; pos += 1) {
 			c = this.registry.citationreg.citationById[newCitationList[pos][0]];
 			for (ppos = 0, llen = c.citationItems.length; ppos < llen; ppos += 1) {
 				newItemIds[c.citationItems[ppos].id] = true;
-				newItemIdsList.push(c.citationItems[ppos].id);
+				newItemIdsList.push("" + c.citationItems[ppos].id);
 			}
 		}
 		var oldAmbigs = {};
@@ -2420,7 +2594,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	len = citation.citationItems.length;
 	for (pos = 0; pos < len; pos += 1) {
 		item = citation.citationItems[pos];
-		Item = this.retrieveItem(item.id);
+		Item = this.retrieveItem("" + item.id);
 	    newitem = [Item, item];
 		sortedItems.push(newitem);
 		citation.citationItems[pos].item = Item;
@@ -2439,6 +2613,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	len = citationsPre.length;
 	for (pos = 0; pos < len; pos += 1) {
 		c = citationsPre[pos];
+		CSL.debug("  -- attempting to access Pre citation with ID: ("+c[0]+")");
 		this.registry.citationreg.citationById[c[0]].properties.noteIndex = c[1];
 		citationByIndex.push(this.registry.citationreg.citationById[c[0]]);
 	}
@@ -2446,6 +2621,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	len = citationsPost.length;
 	for (pos = 0; pos < len; pos += 1) {
 		c = citationsPost[pos];
+		CSL.debug("  -- attempting to access Post citation with ID: ("+c[0]+")");
 		this.registry.citationreg.citationById[c[0]].properties.noteIndex = c[1];
 		citationByIndex.push(this.registry.citationreg.citationById[c[0]]);
 	}
@@ -2464,7 +2640,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 			item = citationByIndex[pos].sortedItems[ppos];
 			if (!this.registry.citationreg.citationsByItemId[item[1].id]) {
 				this.registry.citationreg.citationsByItemId[item[1].id] = [];
-				update_items.push(item[1].id);
+				update_items.push("" + item[1].id);
 			}
 			if (this.registry.citationreg.citationsByItemId[item[1].id].indexOf(citationByIndex[pos]) === -1) {
 				this.registry.citationreg.citationsByItemId[item[1].id].push(citationByIndex[pos]);
@@ -2496,7 +2672,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 				for (pppos = 0; pppos < lllen; pppos += 1) {
 					item = citations[ppos].sortedItems[pppos];
 					if (flag === CSL.PREVIEW) {
-						if (onecitation.citationID !== citation.citationID) {
+						if (onecitation.citationID != citation.citationID) {
 							if ("undefined" === typeof first_ref[item[1].id]) {
 								first_ref[item[1].id] = onecitation.properties.noteIndex;
 								last_ref[item[1].id] = onecitation.properties.noteIndex;
@@ -2522,13 +2698,13 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 						if (ppos > 0 && parseInt(pppos, 10) === 0) {
 							items = citations[(ppos - 1)].sortedItems;
 							useme = false;
-							if ((citations[(ppos - 1)].sortedItems[0][1].id == item[1].id && citations[ppos - 1].properties.noteIndex >= (citations[ppos].properties.noteIndex - 1)) || citations[(ppos - 1)].sortedItems[0][1].id == this.registry.registry[item[1].id].parallel) {
+							if ((citations[(ppos - 1)].sortedItems[0][1].id  == item[1].id && citations[ppos - 1].properties.noteIndex >= (citations[ppos].properties.noteIndex - 1)) || citations[(ppos - 1)].sortedItems[0][1].id == this.registry.registry[item[1].id].parallel) {
 								useme = true;
 							}
 							llllen = items.slice(1).length;
 							for (ppppos = 0; ppppos < llllen; ppppos += 1) {
 								i = items.slice(1)[ppppos];
-								if (!this.registry.registry[i[1].id].parallel || this.registry.registry[i[1].id].parallel === this.registry.registry[i[1].id]) {
+								if (!this.registry.registry[i[1].id].parallel || this.registry.registry[i[1].id].parallel == this.registry.registry[i[1].id]) {
 									useme = false;
 								}
 							}
@@ -2537,7 +2713,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 							} else {
 								suprame = true;
 							}
-						} else if (pppos > 0 && onecitation.sortedItems[(pppos - 1)][1].id === item[1].id) {
+						} else if (pppos > 0 && onecitation.sortedItems[(pppos - 1)][1].id == item[1].id) {
 							ibidme = true;
 						} else {
 							suprame = true;
@@ -2570,19 +2746,19 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 						}
 						if (suprame) {
 							item[1].position = CSL.POSITION_SUBSEQUENT;
-							if (first_ref[item[1].id] !== onecitation.properties.noteIndex) {
+							if (first_ref[item[1].id] != onecitation.properties.noteIndex) {
 								item[1]["first-reference-note-number"] = first_ref[item[1].id];
 							}
 						}
 					}
 					if (onecitation.properties.noteIndex) {
-						note_distance = onecitation.properties.noteIndex - last_ref[item[1].id];
+						note_distance = parseInt(onecitation.properties.noteIndex, 10) - parseInt(last_ref[item[1].id], 10);
 						if (note_distance <= this.citation.opt["near-note-distance"]) {
 							item[1]["near-note"] = true;
 						}
 						last_ref[item[1].id] = onecitation.properties.noteIndex;
 					}
-					if (onecitation.citationID !== citation.citationID) {
+					if (onecitation.citationID != citation.citationID) {
 						llllen = CSL.POSITION_TEST_VARS.length;
 						for (ppppos = 0; ppppos < llllen; ppppos += 1) {
 							param = CSL.POSITION_TEST_VARS[ppppos];
@@ -2607,9 +2783,11 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	for (key in this.tmp.taintedItemIDs) {
 		if (this.tmp.taintedItemIDs.hasOwnProperty(key)) {
 			citations = this.registry.citationreg.citationsByItemId[key];
+			if (citations) {
 				for (pos = 0, len = citations.length; pos < len; pos += 1) {
 					this.tmp.taintedCitationIDs[citations[pos].citationID] = true;
 				}
+			}
 		}
 	}
 	ret = [];
@@ -2622,7 +2800,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 		}
 		oldItemIds = [];
 		for (pos = 0, len = oldItemList.length; pos < len; pos += 1) {
-			oldItemIds.push(oldItemList[pos].id);
+			oldItemIds.push("" + oldItemList[pos].id);
 		}
 		this.updateItems(oldItemIds);
 		for (key in oldAmbigs) {
@@ -2631,13 +2809,13 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 	} else {
 		for (key in this.tmp.taintedCitationIDs) {
 			if (this.tmp.taintedCitationIDs.hasOwnProperty(key)) {
-				if (key === citation.citationID) {
+				if (key == citation.citationID) {
 					continue;
 				}
 				var mycitation = this.registry.citationreg.citationById[key];
 				this.tmp.citation_pos = mycitation.properties.index;
 				this.tmp.citation_note_index = mycitation.properties.noteIndex;
-				this.tmp.citation_id = mycitation.citationID;
+				this.tmp.citation_id = "" + mycitation.citationID;
 				obj = [];
 				obj.push(mycitation.properties.index);
 				obj.push(this.process_CitationCluster.call(this, mycitation.sortedItems));
@@ -2649,7 +2827,7 @@ CSL.Engine.prototype.processCitationCluster = function (citation, citationsPre, 
 		this.tmp.taintedCitationIDs = false;
 		this.tmp.citation_pos = citation.properties.index;
 		this.tmp.citation_note_index = citation.properties.noteIndex;
-		this.tmp.citation_id = citation.citationID;
+		this.tmp.citation_id = "" + citation.citationID;
 		obj = [];
 		obj.push(citationsPre.length);
 		obj.push(this.process_CitationCluster.call(this, sortedItems));
@@ -2679,7 +2857,7 @@ CSL.Engine.prototype.makeCitationCluster = function (rawList) {
 	len = rawList.length;
 	for (pos = 0; pos < len; pos += 1) {
 		item = rawList[pos];
-		Item = this.retrieveItem(item.id);
+		Item = this.retrieveItem("" + item.id);
 		newitem = [Item, item];
 		inputList.push(newitem);
 	}
@@ -2750,17 +2928,17 @@ CSL.getCitationCluster = function (inputList, citationID) {
 		last_collapsed = this.tmp.have_collapsed;
 		params = {};
 		if (pos > 0) {
-			CSL.getCite.call(this, Item, item, inputList[(pos - 1)][1].id);
+			CSL.getCite.call(this, Item, item, "" + inputList[(pos - 1)][0].id);
 		} else {
 			this.tmp.term_predecessor = false;
 			CSL.getCite.call(this, Item, item);
 		}
 		if (!this.tmp.cite_renders_content) {
 			error_object = {
-				citationID: this.tmp.citation_id,
+				citationID: "" + this.tmp.citation_id,
 				index: this.tmp.citation_pos,
 				noteIndex: this.tmp.citation_note_index,
-				itemID: Item.id,
+				itemID: "" + Item.id,
 				citationItems_pos: pos,
 				error_code: CSL.ERROR_NO_RENDERED_FORM
 			};
@@ -2834,6 +3012,7 @@ CSL.getCitationCluster = function (inputList, citationID) {
 		composite = this.output.string(this, this.output.queue);
 		this.tmp.suppress_decorations = false;
 		if (item && item["author-only"]) {
+			this.tmp.suppress_decorations = false;
 			return composite;
 		}
 		if ("object" === typeof composite && composite.length === 0 && !item["suppress-author"]) {
@@ -2879,32 +3058,33 @@ CSL.getCitationCluster = function (inputList, citationID) {
 			}
 		}
 	}
+	this.tmp.suppress_decorations = false;
 	return result;
 };
 CSL.getCite = function (Item, item, prevItemID) {
 	var next, error_object;
 	this.tmp.cite_renders_content = false;
 	this.parallel.StartCite(Item, item, prevItemID);
-	CSL.citeStart.call(this, Item);
+	CSL.citeStart.call(this, Item, item);
 	next = 0;
 	while (next < this[this.tmp.area].tokens.length) {
 		next = CSL.tokenExec.call(this, this[this.tmp.area].tokens[next], Item, item);
     }
-	CSL.citeEnd.call(this, Item);
+	CSL.citeEnd.call(this, Item, item);
 	this.parallel.CloseCite(this);
 	if (!this.tmp.cite_renders_content && !this.tmp.just_looking) {
 		if (this.tmp.area === "bibliography") {
 			error_object = {
 				index: this.tmp.bibliography_pos,
-				itemID: Item.id,
+				itemID: "" + Item.id,
 				error_code: CSL.ERROR_NO_RENDERED_FORM
 			};
 			this.tmp.bibliography_errors.push(error_object);
 		}
 	}
-	return Item.id;
+	return "" + Item.id;
 };
-CSL.citeStart = function (Item) {
+CSL.citeStart = function (Item, item) {
 	this.tmp.lastchr = "";
 	this.tmp.have_collapsed = true;
 	this.tmp.render_seen = false;
@@ -2915,6 +3095,11 @@ CSL.citeStart = function (Item) {
 		this.tmp.disambig_settings = this.registry.registry[Item.id].disambig;
 	} else {
 		this.tmp.disambig_settings = new CSL.AmbigConfig();
+	}
+	if (this.tmp.area === 'bibliography' && this.opt["disambiguate-add-names"] && this.registry.registry[Item.id] && this.tmp.disambig_override) {
+		this.tmp.disambig_request = this.tmp.disambig_settings;
+		this.tmp.disambig_request.names = this.registry.registry[Item.id].disambig.names.slice();
+		this.tmp.disambig_settings.names = this.registry.registry[Item.id].disambig.names.slice();
 	}
 	this.tmp.names_used = [];
 	this.tmp.nameset_counter = 0;
@@ -2928,20 +3113,20 @@ CSL.citeStart = function (Item) {
 	this.tmp.has_done_year_suffix = false;
 	CSL.Util.Names.initNameSlices(this);
 	this.tmp.last_cite_locale = false;
-};
-CSL.citeEnd = function (Item) {
-	if (this.tmp.last_suffix_used && this.tmp.last_suffix_used.match(/[\-.,;:]$/)) {
-		this.tmp.splice_delimiter = " ";
-	} else if (this.tmp.prefix.value() && this.tmp.prefix.value().match(/^[.,:;a-z]/)) {
-		this.tmp.splice_delimiter = " ";
+	if (!this.tmp.just_looking && item && !item.position && this.registry.registry[Item.id]) {
+		this.tmp.disambig_restore = CSL.cloneAmbigConfig(this.registry.registry[Item.id].disambig);
 	}
-	this.tmp.last_suffix_used = this.tmp.suffix.value();
+};
+CSL.citeEnd = function (Item, item) {
+	if (this.tmp.disambig_restore) {
+		this.registry.registry[Item.id].disambig.names = this.tmp.disambig_restore.names;
+		this.registry.registry[Item.id].disambig.givens = this.tmp.disambig_restore.givens;
+	}
+	this.tmp.disambig_restore = false;
+ 	this.tmp.last_suffix_used = this.tmp.suffix.value();
 	this.tmp.last_years_used = this.tmp.years_used.slice();
 	this.tmp.last_names_used = this.tmp.names_used.slice();
 	this.tmp.cut_var = false;
-	if (this.tmp.disambig_restore && this.registry.registry[Item.id]) {
-		this.registry.registry[Item.id].disambig = this.tmp.disambig_restore;
-	}
 	this.tmp.disambig_request = false;
 	if (!this.tmp.suppress_decorations && this.tmp.offset_characters) {
 		this.registry.registry[Item.id].offset = this.tmp.offset_characters;
@@ -3173,22 +3358,19 @@ CSL.Node.date = {
 				state.tmp.donesies = [];
 				state.tmp.dateparts = [];
 				dp = [];
-				if (this.variables.length) {
+				if (this.variables.length
+					&& !(state.tmp.just_looking
+						 && this.variables[0] !== "issued")) {
 					state.parallel.StartVariable(this.variables[0]);
 					date_obj = Item[this.variables[0]];
 					if ("undefined" === typeof date_obj) {
 						date_obj = {"date-parts": [[0]] };
 					}
 					if (date_obj.raw) {
-						state.tmp.date_object = state.fun.dateparser.parse(date_obj.raw);
-					} else if (date_obj["date-parts"]) {
-						state.tmp.date_object = state.dateParseArray(date_obj);
-					} else if ("object" === typeof date_obj) {
-					    state.tmp.date_object = state.dateParseArray(date_obj);
+						date_obj = state.fun.dateparser.parse(date_obj.raw);
 					}
+					state.tmp.date_object = state.dateParseArray(date_obj);
 					len = this.dateparts.length;
-					for (pos = 0; pos < len; pos += 1) {
-					}
 					for (pos = 0; pos < len; pos += 1) {
 						part = this.dateparts[pos];
 						if ("undefined" !== typeof state.tmp.date_object[(part +  "_end")]) {
@@ -3267,6 +3449,9 @@ CSL.Node["date-part"] = {
 		}
 		state.build.date_parts.push(this.strings.name);
 		func = function (state, Item) {
+			if (!state.tmp.date_object) {
+				return;
+			}
 			first_date = true;
 			value = "";
 			value_end = "";
@@ -3404,13 +3589,21 @@ CSL.Node["date-part"] = {
 				}
 			}
 			state.tmp.value = [];
-			if (!state.opt.has_year_suffix && "year" === this.strings.name && !state.tmp.just_looking) {
+			if ((value || state.tmp.have_collapsed) && !state.opt.has_year_suffix && "year" === this.strings.name && !state.tmp.just_looking) {
 				if (state.registry.registry[Item.id] && state.registry.registry[Item.id].disambig.year_suffix !== false && !state.tmp.has_done_year_suffix) {
 					state.tmp.has_done_year_suffix = true;
 					num = parseInt(state.registry.registry[Item.id].disambig.year_suffix, 10);
 					number = new CSL.NumericBlob(num, this);
+					this.successor_prefix = state[state.build.area].opt.layout_delimiter;
+					this.splice_prefix = state[state.build.area].opt.layout_delimiter;
 					formatter = new CSL.Util.Suffixator(CSL.SUFFIX_CHARS);
 					number.setFormatter(formatter);
+					if (state[state.tmp.area].opt.collapse === "year-suffix-ranged") {
+						number.range_prefix = "-";
+					}
+					if (state[state.tmp.area].opt["year-suffix-delimiter"]) {
+						number.successor_prefix = state[state.build.area].opt["year-suffix-delimiter"];
+					}
 					state.output.append(number, "literal");
 				}
 			}
@@ -3699,17 +3892,7 @@ CSL.Node.key = {
 							num = Item[variable];
 						}
 						if (num) {
-							m = num.match(/\s*(-{0,1}[0-9]+)/);
-							if (m) {
-								num = parseInt(m[1], 10);
-								if (num < 0) {
-									num = 99999999999999999999 + num;
-								}
-								num = "" + num;
-								while (num.length < 20) {
-									num = "0" + num;
-								}
-							}
+							num = CSL.Util.padding(num);
 						}
 						state.output.append(num, this);
 					};
@@ -3734,9 +3917,8 @@ CSL.Node.key = {
 						if ("undefined" === typeof dp) {
 							dp = {};
 						}
-						len = CSL.DATE_PARTS_INTERNAL.length;
-						for (pos = 0; pos < len; pos += 1) {
-							elem = CSL.DATE_PARTS_INTERNAL[pos];
+						for (var i = 0, ilen = CSL.DATE_PARTS_INTERNAL.length; i < ilen; i += 1) {
+							elem = CSL.DATE_PARTS_INTERNAL[i];
 							value = 0;
 							e = elem;
 							if (e.slice(-4) === "_end") {
@@ -3758,12 +3940,19 @@ CSL.Node.key = {
 								state.output.append(CSL.Util.Dates[e]["numeric-leading-zeros"](state, value));
 							}
 						}
+						if (state.registry.registry[Item.id] && state.registry.registry[Item.id].disambig.year_suffix) {
+							num = state.registry.registry[Item.id].disambig.year_suffix.toString();
+							num = CSL.Util.padding(num);
+						} else {
+							num = CSL.Util.padding("0");
+						}
+						state.output.append("S"+num)
 					};
 				} else if ("title" === variable) {
 					state.transform.init("empty", "title");
 					state.transform.setTransformLocale("locale-sort");
 					state.transform.setTransformFallback(true);
-					func = state.transform.getOutputFunction();
+					func = state.transform.getOutputFunction(this.variables);
 				} else {
 					func = function (state, Item) {
 						var varval = Item[variable];
@@ -3779,11 +3968,10 @@ CSL.Node.key = {
 			tlen = target.length;
 			keypos = false;
 			CSL.expandMacro.call(state, token);
-			len = target.slice(tlen).length;
-			for (pos = 0; pos < len; pos += 1) {
-				tok = target.slice(tlen)[pos];
+			for (var i = 0, ilen = target.slice(tlen).length; i < ilen; i += 1) {
+				tok = target.slice(tlen)[i];
 				if (tok && tok.name === "text" && tok.dateparts) {
-					keypos = pos;
+					keypos = i;
 					break;
 				}
 			}
@@ -3943,7 +4131,7 @@ CSL.Node.layout = {
 					var sp;
 					if (item && item.prefix) {
 						sp = "";
-						if (item.prefix.match(CSL.ROMANESQUE_REGEXP)) {
+						if (item.prefix.match(CSL.ENDSWITH_ROMANESQUE_REGEXP)) {
 							sp = " ";
 						}
 						state.output.append((item.prefix + sp), this);
@@ -4022,7 +4210,7 @@ CSL.Node.layout = {
 						var sp;
 						if (item && item.suffix) {
 							sp = "";
-							if (item.suffix.match(CSL.ROMANESQUE_REGEXP)) {
+							if (item.suffix.match(CSL.STARTSWITH_ROMANESQUE_REGEXP)) {
 								sp = " ";
 							}
 							state.output.append((sp + item.suffix), this);
@@ -4042,6 +4230,7 @@ CSL.Node.layout = {
 				this.execs.push(func);
 				target.push(this);
 				state.build.layout_flag = false;
+				state.build.layout_locale_flag = false;
 			} // !this.layout_raw
 		}
 	}
@@ -4081,6 +4270,11 @@ CSL.Node.name = {
 				if (item.position) {
 					if (! state.tmp["et-al-min"]) {
 						if (this.strings["et-al-subsequent-min"]) {
+							if (state.registry.registry[Item.id]
+								&& !state.registry.registry[Item.id].have_seen_subsequent) {
+								state.registry.registry[Item.id].have_seen_subsequent = true;
+								state.tmp.disambig_request = false;
+							}
 							state.tmp["et-al-min"] = this.strings["et-al-subsequent-min"];
 						} else {
 							state.tmp["et-al-min"] = this.strings["et-al-min"];
@@ -4088,6 +4282,11 @@ CSL.Node.name = {
 					}
 					if (! state.tmp["et-al-use-first"]) {
 						if (this.strings["et-al-subsequent-use-first"]) {
+							if (state.registry.registry[Item.id]
+								&& !state.registry.registry[Item.id].have_seen_subsequent) {
+								state.registry.registry[Item.id].have_seen_subsequent = true;
+								state.tmp.disambig_request = false;
+							}
 							state.tmp["et-al-use-first"] = this.strings["et-al-subsequent-use-first"];
 						} else {
 							state.tmp["et-al-use-first"] = this.strings["et-al-use-first"];
@@ -4144,15 +4343,14 @@ CSL.Node.names = {
 					for (pos = 0; pos < len; pos += 1) {
 						variable = this.variables[pos];
 						if (Item[variable]) {
-							rawvar = Item[variable];
+							rawlist = Item[variable];
 							if ("string" === typeof Item[variable]) {
-								rawvar = [{literal: Item[variable]}];
+								rawlist = [{literal: Item[variable]}];
 							}
-							var rawlen = rawvar.length;
+							var rawlen = rawlist.length;
 							if (state.opt.max_number_of_names && rawlen > 50 && rawlen > (state.opt.max_number_of_names + 2)) {
-								rawvar = rawvar.slice(0, state.opt.max_number_of_names + 2);
+								rawlist = rawlist.slice(0, state.opt.max_number_of_names + 2);
 							}
-							rawlist = state.getNameSubFields(rawvar);
 							names = [];
 							tnamesets = [];
 							nameset = {names: []};
@@ -4160,17 +4358,22 @@ CSL.Node.names = {
 							llen = rawlist.length;
 							for (ppos = 0; ppos < llen; ppos += 1) {
 								name = rawlist[ppos];
-								if (name.literal) {
+								if (name.literal || (name.family && !name.given)) {
 									nameset.variable = variable;
 									nameset.species = "org";
-									if (name.literal.slice(0, 1) === '"' && name.literal.slice(-1)) {
-										lllst = [name.literal.slice(1, -1)];
+									if (name.literal) {
+										var lit = name.literal;
 									} else {
-										lllst = name.literal.split(/,\s+/);
+										var lit = name.family;
+									}
+									if (lit.slice(0, 1) === '"' && lit.slice(-1)) {
+										lllst = [lit.slice(1, -1)];
+									} else {
+										lllst = lit.split(/,\s+/);
 									}
 									lllen = lllst.length;
 									for (pppos = 0; pppos < lllen; pppos += 1) {
-										name = {literal: lllst[pppos]};
+										name = {literal: lllst[pppos], family:'', given:''};
 										nameset.names.push(name);
 									}
 									tnamesets.push(nameset);
@@ -4179,7 +4382,7 @@ CSL.Node.names = {
 									nameset.variable = variable;
 									nameset.species = "pers";
 									nameset.names.push(name);
-									if (rawlist.length === (ppos + 1) || rawlist[ppos + 1].literal) {
+									if (rawlist.length === (ppos + 1) || rawlist[ppos + 1].literal || (rawlist[ppos + 1].family && !rawlist[ppos + 1].given)) {
 										tnamesets.push(nameset);
 										nameset = {names: []};
 									}
@@ -4193,14 +4396,6 @@ CSL.Node.names = {
 								}
 							}  else {
 								frontnames = [];
-							}
-							if (tnamesets.length > 0 && tnamesets.slice(-1)[0].species === "org") {
-								tnamesets[0].organization_first = true;
-								tnamesets.slice(-1)[0].organization_last = true;
-								if (frontnames.length) {
-									frontnames[0].free_agent_start = true;
-									tnamesets.slice(-1)[0].free_agent_end = true;
-								}
 							}
 							if (frontnames.length === 0) {
 								if (tnamesets.length > 1) {
@@ -4249,22 +4444,14 @@ CSL.Node.names = {
 								}
 							}
 						}
-						namesets = namesets.slice(0, 1);
 						if (namesets.length) {
 							if (namesets[0].species === "pers") {
-								namesets[0].organization_first = false;
 								namesets[0].after_people = false;
-								namesets[0].free_agent_start = false;
-								namesets[0].free_agent_end = false;
-							} else {
-								namesets[0].organization_last = true;
 							}
 						}
 					}
-					len = namesets.length;
-					for (pos = 0; pos < len; pos += 1) {
+					for (pos = 0, len = namesets.length; pos < len; pos += 1) {
 						state.tmp.names_max.push(namesets[pos].names.length);
-						state.tmp.names_used.push(namesets[pos]);
 					}
 					state.tmp.value = namesets.slice();
 				}
@@ -4311,31 +4498,64 @@ CSL.Node.names = {
 				    }
 				    cutinfo = state.tmp.names_cut;
 				    if (namesets[0].species === "pers") {
-					if (state.tmp.cut_var) {
-					    namesets[0].names = namesets[0].names.slice(cutinfo.counts[state.tmp.cut_var]);
-					}
-					if (namesets[0].names.length === 0) {
-					    if (namesets[0].free_agent_start) {
-						namesets[1].free_agent_start = true;
-					    }
-					    if (namesets[0].organization_first) {
-						namesets[1].organization_first = true;
-					    }
-					    namesets = namesets.slice(1);
-					}
-				    } else {
-					namesets = namesets.slice(0, 1);
-					if (namesets[0].organization_first) {
-					    namesets[0].organization_last = true;
-					}
-				    }
+						if (state.tmp.cut_var) {
+							namesets[0].names = namesets[0].names.slice(cutinfo.counts[state.tmp.cut_var]);
+						}
+						if (namesets[0].names.length === 0) {
+							namesets = namesets.slice(1);
+						}
+				    } 
 				    if (state.tmp.cut_var && cutinfo.used === state.tmp.cut_var) {
-					llen = cutinfo.variable[state.tmp.cut_var].length - 1;
-					for (ppos = llen; ppos > -1; ppos += -1) {
-					    obj = cutinfo.variable[state.tmp.cut_var][ppos];
-					    obj[0].blobs = obj[0].blobs.slice(0, obj[1]).concat(obj[0].blobs.slice(obj[1] + 1));
-					}
+						llen = cutinfo.variable[state.tmp.cut_var].length - 1;
+						for (ppos = llen; ppos > -1; ppos += -1) {
+							obj = cutinfo.variable[state.tmp.cut_var][ppos];
+							obj[0].blobs = obj[0].blobs.slice(0, obj[1]).concat(obj[0].blobs.slice(obj[1] + 1));
+						}
 				    }
+				}
+				if (!state.output.getToken("and-org")) {
+					state.output.addToken("and-org");
+				}
+				var prefix_single_org = " ";
+				var prefix_multiple_org = ", ";
+				var and_org = state.getTerm("and", "long", 0);
+				var offset = 0;
+				if (namesets.length > 1 && namesets[1].after_people) {
+					var offset = 1
+				}
+				var numnamesets = 0;
+				for (i = offset, ilen = namesets.length; i < ilen; i += 1) {
+					if (namesets[i].species === 'org') {
+						if (i > 0 && namesets[i - 1].species === 'pers' && !namesets[i].after_people) {
+							namesets[i - 1].organization_first = true;
+						} else {
+							namesets [i].organization_first = true;
+						}
+						namesets[i].organization_last = true;
+						numnamesets += 1;
+					}
+				}
+				var namesetcount = 0;
+				for (i = offset, ilen = namesets.length; i < ilen; i += 1) {
+					if (namesets[i].species === 'org' && numnamesets > 1) {
+						if ((i - offset) > 0 && numnamesets === (namesetcount + 1)) {
+							if (namesets[i - 1].species === 'pers') {
+								namesets[i - 2].institutions_and_join = true;
+							} else {
+								namesets[i - 1].institutions_and_join = true;
+							}
+						}
+						namesetcount += 1;
+					}
+				}
+				if (numnamesets > 1) {
+					state.output.getToken("and-org").strings.prefix = prefix_single_org;
+					if (numnamesets > 2) {
+						namesets[offset].institutions_penultimate_group_start = true;
+						namesets[namesets.length - 2].institutions_penultimate_group_end = true;
+						state.output.getToken("and-org").strings.prefix = prefix_multiple_org;
+					}
+					state.output.getToken("and-org").strings.suffix = " ";
 				}
 				if (!state.output.getToken("institution")) {
 					state.output.addToken("institution");
@@ -4346,17 +4566,6 @@ CSL.Node.names = {
 					if ("org" === nameset.species) {
 						if (state.output.getToken("institution").strings["reverse-order"]) {
 							nameset.names.reverse();
-						}
-					}
-					llen = nameset.names.length;
-					for (ppos = 0; ppos < llen; ppos += 1) {
-						name = nameset.names[ppos];
-						if (state.opt["parse-names"]
-						    && name["parse-names"] !== 0) {
-							state.parseName(name);
-						}
-						if (name.family && name.family.length && name.family.slice(0, 1) === '"' && name.family.slice(-1)) {
-							name.family = name.family.slice(1, -1);
 						}
 					}
 				}
@@ -4397,12 +4606,6 @@ CSL.Node.names = {
 				state.output.getToken("and-pers").strings["prefix-single"] = " ";
 				state.output.getToken("and-pers").strings["prefix-multiple"] = ", ";
 				and_pers = state.getTerm("and", "long", 0);
-				if (!state.output.getToken("and-org")) {
-					state.output.addToken("and-org");
-				}
-				state.output.getToken("and-org").strings["prefix-single"] = " ";
-				state.output.getToken("and-org").strings["prefix-multiple"] = ", ";
-				and_org = state.getTerm("and", "long", 0);
 				state.output.addToken("with");
 				state.output.getToken("with").strings.prefix = ", ";
 				state.output.getToken("with").strings.suffix = " ";
@@ -4444,18 +4647,6 @@ CSL.Node.names = {
 					if (label && state.output.getToken("label").strings.label_position === CSL.BEFORE) {
 						state.output.append(label, "label");
 					}
-					if (!state.tmp.suppress_decorations && (state[state.tmp.area].opt.collapse === "year" || state[state.tmp.area].opt.collapse === "year-suffix" || state[state.tmp.area].opt.collapse === "year-suffix-ranged")) {
-						if (state.tmp.last_names_used.length === state.tmp.names_used.length) {
-							lastones = state.tmp.last_names_used[state.tmp.nameset_counter];
-							currentones = state.tmp.names_used[state.tmp.nameset_counter];
-							compset = [currentones, lastones];
-							if (CSL.Util.Names.getCommonTerm(state, compset)) {
-								continue;
-							} else {
-								state.tmp.have_collapsed = false;
-							}
-						}
-					}
 					if (!state.tmp.disambig_request) {
 						state.tmp.disambig_settings.givens[state.tmp.nameset_counter] = [];
 					}
@@ -4483,10 +4674,17 @@ CSL.Node.names = {
 								discretionary_names_length = state.tmp["et-al-use-first"];
 							}
 						} else {
-							if (state.tmp.disambig_request && state.tmp["et-al-use-first"] < state.tmp.disambig_request.names[state.tmp.nameset_counter]) {
-								discretionary_names_length = state.tmp.disambig_request.names[state.tmp.nameset_counter];
+							if (state.tmp.disambig_request && state.tmp.disambig_request.names[state.tmp.nameset_counter] > state.tmp["et-al-use-first"]) {
+								if (display_names.length < state.tmp["et-al-min"]) {
+									discretionary_names_length = display_names.length;
+								} else {
+									discretionary_names_length = state.tmp.disambig_request.names[state.tmp.nameset_counter];
+								}
 							} else if (display_names.length >= state.tmp["et-al-min"]) {
 								discretionary_names_length = state.tmp["et-al-use-first"];
+							}
+							if (state.tmp["et-al-use-last"] && discretionary_names_length > (state.tmp["et-al-min"] - 2)) {
+								discretionary_names_length = state.tmp["et-al-min"] - 2;
 							}
 						}
 						overlength = display_names.length > discretionary_names_length;
@@ -4549,9 +4747,26 @@ CSL.Node.names = {
 					}
 					state.tmp.disambig_settings.names[state.tmp.nameset_counter] = display_names.length;
 					local_count += display_names.length;
+					state.tmp.names_used.push({names:display_names,etal:et_al});
+					if (!state.tmp.suppress_decorations && (state[state.tmp.area].opt.collapse === "year" || state[state.tmp.area].opt.collapse === "year-suffix" || state[state.tmp.area].opt.collapse === "year-suffix-ranged")) {
+						if (state.tmp.last_names_used.length === state.tmp.names_used.length) {
+							lastones = state.tmp.last_names_used[state.tmp.nameset_counter];
+							currentones = state.tmp.names_used[state.tmp.nameset_counter];
+							compset = [currentones, lastones];
+							if (CSL.Util.Names.compareNamesets(lastones,currentones)) {
+								continue;
+							} else {
+								state.tmp.have_collapsed = false;
+							}
+						} else {
+							state.tmp.have_collapsed = false;
+						}
+					} else {
+						state.tmp.have_collapsed = false;
+					}
 					llen = nameset.names.length;
 					for (ppos = 0; ppos < llen; ppos += 1) {
-						state.registry.namereg.addname(Item.id, nameset.names[ppos], ppos);
+						state.registry.namereg.addname("" + Item.id, nameset.names[ppos], ppos);
 						chk = state.tmp.disambig_settings.givens[state.tmp.nameset_counter];
 						if ("undefined" === typeof chk) {
 							state.tmp.disambig_settings.givens.push([]);
@@ -4560,12 +4775,12 @@ CSL.Node.names = {
 						if ("undefined" === typeof chk) {
 							myform = state.output.getToken("name").strings.form;
 							myinitials = this.strings["initialize-with"];
-							param = state.registry.namereg.evalname(Item.id, nameset.names[ppos], ppos, 0, myform, myinitials);
+							param = state.registry.namereg.evalname("" + Item.id, nameset.names[ppos], ppos, 0, myform, myinitials);
 							state.tmp.disambig_settings.givens[state.tmp.nameset_counter].push(param);
 						}
 						myform = state.output.getToken("name").strings.form;
 						myinitials = this.strings["initialize-with"];
-						paramx = state.registry.namereg.evalname(Item.id, nameset.names[ppos], ppos, 0, myform, myinitials);
+						paramx = state.registry.namereg.evalname("" + Item.id, nameset.names[ppos], ppos, 0, myform, myinitials);
 						if (state.tmp.sort_key_flag) {
 							state.tmp.disambig_settings.givens[state.tmp.nameset_counter][ppos] = 2;
 							param = 2;
@@ -4578,13 +4793,12 @@ CSL.Node.names = {
 							}
 							param = val;
 							if (state.opt["disambiguate-add-givenname"]) {
-								param = state.registry.namereg.evalname(Item.id, nameset.names[ppos], ppos, param, state.output.getToken("name").strings.form, this.strings["initialize-with"]);
+								param = state.registry.namereg.evalname("" + Item.id, nameset.names[ppos], ppos, param, state.output.getToken("name").strings.form, this.strings["initialize-with"]);
 							}
 						} else {
 							param = paramx;
 						}
 						if (!state.tmp.just_looking && item && item.position === CSL.POSITION_FIRST) {
-							state.tmp.disambig_restore = CSL.cloneAmbigConfig(state.tmp.disambig_settings);
 							param = paramx;
 						}
 						if (!state.tmp.sort_key_flag) {
@@ -4601,7 +4815,10 @@ CSL.Node.names = {
 						state.output.openLevel("trailing-names", state.tmp.cut_var);
 					}
 					if (nameset.after_people) {
-						state.output.append("with", "with");
+						state.output.append(with_term, "with");
+					}
+					if (nameset.institutions_penultimate_group_start) {
+						state.output.openLevel("inner");
 					}
 					if (nameset.organization_first) {
 						state.output.openLevel("institution-outer");
@@ -4633,12 +4850,18 @@ CSL.Node.names = {
 								state.output.closeLevel("trailing-names");
 							}
 							state.output.closeLevel("institution-outer");
+							if (nameset.institutions_penultimate_group_end) {
+								state.output.closeLevel("inner");
+							}
 						} else {
 							if (nameset.trailers1b_end) {
 								state.output.closeLevel("trailing-names");
 							}
 							state.output.closeLevel("inner");
 							state.output.openLevel("inner");
+						}
+						if (nameset.institutions_and_join) {
+							state.output.append(and_org, "and-org");
 						}
 					}
 					if (nameset.trailers3_end) {
@@ -4674,7 +4897,9 @@ CSL.Node.names = {
 				state.tmp["has-first-person"] = false;
 				state.tmp["et-al-min"] = false;
 				state.tmp["et-al-use-first"] = false;
-				state.tmp["et-al-use-last"] = false;
+				if (!state.tmp["et-al-use-last"]) {
+					state.tmp["et-al-use-last"] = false;
+				}
 				state.tmp.use_ellipsis = false;
 				state.tmp.can_block_substitute = false;
 				state.tmp.forceEtAl = false;
@@ -4851,7 +5076,12 @@ CSL.Node.text = {
 		if (this.postponed_macro) {
 			CSL.expandMacro.call(state, this);
 		} else {
-			variable = this.variables[0];
+			if (!this.variables_real) {
+				this.variables_real = [];
+			}
+			if (!this.variables) {
+				this.variables = [];
+			}
 			form = "long";
 			plural = 0;
 			if (this.strings.form) {
@@ -4860,8 +5090,8 @@ CSL.Node.text = {
 			if (this.strings.plural) {
 				plural = this.strings.plural;
 			}
-			if ("citation-number" === variable || "year-suffix" === variable || "citation-label" === variable) {
-				if (variable === "citation-number") {
+			if ("citation-number" === this.variables_real[0] || "year-suffix" === this.variables_real[0] || "citation-label" === this.variables_real[0]) {
+				if (this.variables_real[0] === "citation-number") {
 					if (state.build.area === "citation") {
 						state.opt.update_mode = CSL.NUMERIC;
 					}
@@ -4874,7 +5104,7 @@ CSL.Node.text = {
 					this.successor_prefix = state[state.build.area].opt.layout_delimiter;
 					this.splice_prefix = state[state.build.area].opt.layout_delimiter;
 					func = function (state, Item, item) {
-						id = Item.id;
+						id = "" + Item.id;
 						if (!state.tmp.just_looking) {
 							if (item && item["author-only"]) {
 								state.tmp.element_trace.replace("do-not-suppress-me");
@@ -4898,7 +5128,7 @@ CSL.Node.text = {
 						}
 					};
 					this.execs.push(func);
-				} else if (variable === "year-suffix") {
+				} else if (this.variables_real[0] === "year-suffix") {
 					state.opt.has_year_suffix = true;
 					if (state[state.tmp.area].opt.collapse === "year-suffix-ranged") {
 						this.range_prefix = "-";
@@ -4929,7 +5159,7 @@ CSL.Node.text = {
 						}
 					};
 					this.execs.push(func);
-				} else if (variable === "citation-label") {
+				} else if (this.variables_real[0] === "citation-label") {
 					state.opt.has_year_suffix = true;
 					func = function (state, Item) {
 						label = Item["citation-label"];
@@ -4998,47 +5228,52 @@ CSL.Node.text = {
 				    state.build.term = false;
 				    state.build.form = false;
 				    state.build.plural = false;
-				} else if (this.variables.length) {
+				} else if (this.variables_real.length) {
 					func = function (state, Item) {
 						state.parallel.StartVariable(this.variables[0]);
 						state.parallel.AppendToVariable(Item[this.variables[0]]);
 					};
 					this.execs.push(func);
-					if (CSL.MULTI_FIELDS.indexOf(this.variables[0]) > -1) {
+					if (CSL.MULTI_FIELDS.indexOf(this.variables_real[0]) > -1) {
 						if (form === "short") {
-							state.transform.init(this, this.variables[0], this.variables[0]);
+							state.transform.init(this, this.variables_real[0], this.variables_real[0]);
 						} else {
-							state.transform.init(this, this.variables[0]);
+							state.transform.init(this, this.variables_real[0]);
 						}
 						if (state.build.area.slice(-5) === "_sort") {
+							state.transform.init(this, this.variables_real[0], this.variables_real[0]);
 							state.transform.setTransformLocale("locale-sort");
 							state.transform.setTransformFallback(true);
-							func = state.transform.getOutputFunction();
+							func = state.transform.getOutputFunction(this.variables);
 						} else if (form === "short") {
-							state.transform.setAbbreviationFallback(true);
-							state.transform.setTransformLocale("locale-pri");
-							state.transform.setTransformFallback(true);
-							if (this.variables[0] === "container-title") {
+							 if (["title", "container-title", "collection-title"].indexOf(this.variables_real[0]) > -1) {
+								 state.transform.setTransformLocale("locale-sec");
+							 } else {
+								 state.transform.setTransformLocale("locale-pri");
+							 }
+							 state.transform.setTransformFallback(true);
+							 state.transform.setAbbreviationFallback(true);
+							if (this.variables_real[0] === "container-title") {
 								state.transform.setAlternativeVariableName("journalAbbreviation");
-							} else if (this.variables[0] === "title") {
+							} else if (this.variables_real[0] === "title") {
 								state.transform.setAlternativeVariableName("shortTitle");
-							} else if (["publisher", "publisher-place"].indexOf(this.variables[0]) > -1) {
+							} else if (["publisher", "publisher-place", "edition"].indexOf(this.variables_real[0]) > -1) {
 								state.transform.setTransformLocale("default-locale");
 							}
-							func = state.transform.getOutputFunction();
-						} else if (this.variables[0] === "title") {
+							func = state.transform.getOutputFunction(this.variables);
+						} else if (["title", "container-title", "collection-title"].indexOf(this.variables_real[0]) > -1) {
 							state.transform.setTransformLocale("locale-sec");
 							state.transform.setTransformFallback(true);
-							func = state.transform.getOutputFunction();
+							func = state.transform.getOutputFunction(this.variables);
 						} else {
 							state.transform.setTransformLocale("locale-pri");
 							state.transform.setTransformFallback(true);
-							if (["publisher", "publisher-place"].indexOf(this.variables[0]) > -1) {
+							if (["publisher", "publisher-place", "edition"].indexOf(this.variables_real[0]) > -1) {
 								state.transform.setTransformLocale("default-locale");
 							}
-							func = state.transform.getOutputFunction();
+							func = state.transform.getOutputFunction(this.variables);
 						}
-						if (this.variables[0] === "container-title") {
+						if (this.variables_real[0] === "container-title") {
 							var xfunc = function (state, Item, item) {
 								if (Item['container-title'] && state.tmp.citeblob.has_volume) {
 									state.tmp.citeblob.can_suppress_identical_year = true;
@@ -5047,13 +5282,13 @@ CSL.Node.text = {
 							this.execs.push(xfunc);
 						}
 					} else {
-						if (CSL.CITE_FIELDS.indexOf(this.variables[0]) > -1) {
+						if (CSL.CITE_FIELDS.indexOf(this.variables_real[0]) > -1) {
 							func = function (state, Item, item) {
 								if (item && item[this.variables[0]]) {
 									state.output.append(item[this.variables[0]], this);
 								}
 							};
-						} else if (this.variables[0] === "page-first") {
+						} else if (this.variables_real[0] === "page-first") {
 							func = function (state, Item) {
 								var idx, value;
 								value = state.getVariable(Item, "page", form);
@@ -5065,7 +5300,7 @@ CSL.Node.text = {
 									state.output.append(value, this);
 								}
 							};
-						} else  if (this.variables[0] === "page") {
+						} else  if (this.variables_real[0] === "page") {
 							func = function (state, Item) {
 								var value = state.getVariable(Item, "page", form);
 								if (value) {
@@ -5075,17 +5310,21 @@ CSL.Node.text = {
 							};
 						} else if ("volume") {
 							func = function (state, Item) {
-								var value = state.getVariable(Item, this.variables[0], form);
-								if (value) {
-									state.tmp.citeblob.has_volume = true;
-									state.output.append(value, this);
+								if (this.variables[0]) {
+									var value = state.getVariable(Item, this.variables[0], form);
+									if (value) {
+										state.tmp.citeblob.has_volume = true;
+										state.output.append(value, this);
+									}
 								}
 							};
 						} else {
 							func = function (state, Item) {
-								var value = state.getVariable(Item, this.variables[0], form);
-								if (value) {
-									state.output.append(value, this);
+								if (this.variables[0]) {
+									var value = state.getVariable(Item, this.variables[0], form);
+									if (value) {
+										state.output.append(value, this);
+									}
 								}
 							};
 						}
@@ -5175,7 +5414,9 @@ CSL.Attributes["@variable"] = function (state, arg) {
 	} else if (["names", "date", "text", "number"].indexOf(this.name) > -1) {
 		func = function (state, Item) {
 			variables = this.variables_real.slice();
-			this.variables = [];
+			for (var i = this.variables.length - 1; i > -1; i += -1) {
+				this.variables.pop();
+			};
 			len = variables.length;
 			for (pos = 0; pos < len; pos += 1) {
 				if (state.tmp.done_vars.indexOf(variables[pos]) === -1) {
@@ -5193,14 +5434,19 @@ CSL.Attributes["@variable"] = function (state, arg) {
 			len = this.variables.length;
 			for (pos = 0; pos < len; pos += 1) {
 				variable = this.variables[pos];
+				if (variable === "page-first") {
+					variable = "page";
+				}
 				if (this.strings.form === "short" && !Item[variable]) {
 					if (variable === "title") {
 						variable = "shortTitle";
 					} else if (variable === "container-title") {
 						variable = "journalAbbreviation";
-					} else if (variable === "page-first") {
-						variable = "page";
 					}
+				}
+                if (variable === "year-suffix") {
+					output = true;
+					break;
 				}
 				if (CSL.DATE_VARIABLES.indexOf(variable) > -1) {
 					if (Item[variable] && Item[variable].raw) {
@@ -5221,27 +5467,27 @@ CSL.Attributes["@variable"] = function (state, arg) {
 						}
 						if (varlen >= needlen) {
 							output = true;
-							break;
 						}
+						break;
 					}
 				} else if ("locator" === variable) {
 					if (item && item.locator) {
 						output = true;
-						break;
 					}
+					break;
 				} else if ("citation-number" === variable) {
 					output = true;
 					break;
 				} else if ("first-reference-note-number" === variable) {
 					if (item && item["first-reference-note-number"]) {
 						output = true;
-						break;
 					}
+					break;
 				} else if ("object" === typeof Item[variable]) {
 					if (Item[variable].length) {
 						output = true;
-						break;
 					}
+					break;
 				} else if ("string" === typeof Item[variable] && Item[variable]) {
 					output = true;
 					break;
@@ -5437,7 +5683,7 @@ CSL.Attributes["@names-use-first"] = function (state, arg) {
 	this.strings["et-al-use-first"] = parseInt(arg, 10);
 };
 CSL.Attributes["@names-use-last"] = function (state, arg) {
-    	if (arg === "true") {
+	if (arg === "true") {
 		this.strings["et-al-use-last"] = true;
 	} else {
 		this.strings["et-al-use-last"] = false;
@@ -5579,6 +5825,7 @@ CSL.Attributes["@et-al-use-last"] = function (state, arg) {
 	}
 };
 CSL.Attributes["@et-al-subsequent-min"] = function (state, arg) {
+	state.opt.update_mode = CSL.POSITION;
 	var val = parseInt(arg, 10);
 	if (state.opt.max_number_of_names < val) {
 		state.opt.max_number_of_names = val;
@@ -5586,6 +5833,7 @@ CSL.Attributes["@et-al-subsequent-min"] = function (state, arg) {
 	state.setOpt(this, "et-al-subsequent-min", val);
 };
 CSL.Attributes["@et-al-subsequent-use-first"] = function (state, arg) {
+	state.opt.update_mode = CSL.POSITION;
 	state.setOpt(this, "et-al-subsequent-use-first", parseInt(arg, 10));
 };
 CSL.Attributes["@truncate-min"] = function (state, arg) {
@@ -5919,44 +6167,29 @@ CSL.Transform = function (state) {
 		}
 		return value;
 	}
-	function getTextSubField(value, locale_type, use_default) {
-		var m, lst, opt, o, oo, pos, key, ret, len, myret;
-		if (!value) {
+	function getTextSubField(Item, field, locale_type, use_default) {
+		var m, lst, opt, o, oo, pos, key, ret, len, myret, opts;
+		if (!Item[field]) {
 			return "";
 		}
 		ret = "";
-		m = value.match(/\s*:([\-a-zA-Z0-9]+):\s*/g);
-		if (m) {
-			for (pos = 0, len = m.length; pos < len; pos += 1) {
-				m[pos] = m[pos].replace(/^\s*:/, "").replace(/:\s*$/, "");
-			}
+		opts = state.opt[locale_type];
+		if ("undefined" === typeof opts) {
+			opts = state.opt["default-locale"];
 		}
-		lst = value.split(/\s*:(?:[\-a-zA-Z0-9]+):\s*/);
-		myret = [lst[0]];
-		for (pos = 1, len = lst.length; pos < len; pos += 1) {
-			myret.push(m[pos - 1]);
-			myret.push(lst[pos]);
-		}
-		lst = myret.slice();
-		opt = state.opt[locale_type];
-		if ("undefined" === typeof opt) {
-			opt = state.opt["default-locale"];
-		}
-		for (key in opt) {
-			if (opt.hasOwnProperty(key)) {
-				oo = opt[key];
-				o = oo.split(/[-_]/)[0];
-				if (oo && lst.indexOf(oo) > -1 && lst.indexOf(oo) % 2) {
-					ret = lst[(lst.indexOf(oo) + 1)];
-					break;
-				} else if (o && lst.indexOf(o) > -1 && lst.indexOf(o) % 2) {
-					ret = lst[(lst.indexOf(o) + 1)];
-					break;
-				}
+		for (var i = 0, ilen = opts.length; i < ilen; i += 1) {
+			opt = opts[i];
+			o = opt.split(/[-_]/)[0];
+			if (opt && Item.multi && Item.multi._keys[field] && Item.multi._keys[field][opt]) {
+				ret = Item.multi._keys[field][opt];
+				break;
+			} else if (o && Item.multi && Item.multi._keys[field] && Item.multi._keys[field][o]) {
+				ret = Item.multi._keys[field][o];
+				break;
 			}
 		}
 		if (!ret && use_default) {
-			ret = lst[0];
+			ret = Item[field];
 		}
 		return ret;
 	}
@@ -5988,7 +6221,7 @@ CSL.Transform = function (state) {
 		}
 	}
 	this.setAbbreviations = setAbbreviations;
-	function getOutputFunction() {
+	function getOutputFunction(variables) {
 		var mytoken, mysubsection, myfieldname, abbreviation_fallback, alternative_varname, transform_locale, transform_fallback, getTextSubfield;
 		mytoken = CSL.Util.cloneToken(token); // the token isn't needed, is it?
 		mysubsection = subsection;
@@ -5997,49 +6230,60 @@ CSL.Transform = function (state) {
 		alternative_varname = opt.alternative_varname;
 		transform_locale = opt.transform_locale;
 		transform_fallback = opt.transform_fallback;
-		if (mysubsection) {
+		if (false && mysubsection) {
 			return function (state, Item) {
-				var value, primary;
-				value = Item[myfieldname];
-				primary = getTextSubField(value, transform_locale, transform_fallback);
+				var primary;
+				if (!variables[0]) {
+					return null;
+				}
+				primary = getTextSubField(Item, myfieldname, transform_locale, transform_fallback);
 				primary = abbreviate(state, Item, alternative_varname, primary, mysubsection, true);
 				state.output.append(primary, this);
 			};
 		} else if (transform_locale === "locale-sec") {
 			return function (state, Item) {
-				var primary, secondary, primary_tok, secondary_tok, key, value;
-				value = Item[myfieldname];
-				if (value) {
-					if ("number" === typeof value) {
-						value = "" + value;
+				var primary, secondary, primary_tok, secondary_tok, key;
+				if (!variables[0]) {
+					return null;
+				}
+				if (state.opt["locale-suppress-title-transliteration"] 
+					|| !((state.tmp.area === 'bibliography'
+						|| (state.opt.xclass === "note" &&
+							state.tmp.area === "citation"))
+						)
+					) {
+					primary = Item[myfieldname];
+				} else {
+					primary = getTextSubField(Item, myfieldname, "locale-pri", transform_fallback);
+				}
+				if (mysubsection) {
+					primary = abbreviate(state, Item, alternative_varname, primary, mysubsection, true);
+				}
+				secondary = getTextSubField(Item, myfieldname, "locale-sec");
+				if (secondary && ((state.tmp.area === 'bibliography' || (state.opt.xclass === "note" && state.tmp.area === "citation")))) {
+					if (mysubsection) {
+						secondary = abbreviate(state, Item, alternative_varname, secondary, mysubsection, true);
 					}
-					primary = getTextSubField(value, "locale-pri", transform_fallback);
-					secondary = getTextSubField(value, "locale-sec");
-					if (secondary) {
-						primary_tok = CSL.Util.cloneToken(this);
-						primary_tok.strings.suffix = "";
-						secondary_tok = new CSL.Token("text", CSL.SINGLETON);
-						secondary_tok.strings.suffix = "]" + this.strings.suffix;
-						secondary_tok.strings.prefix = " [";
-						state.output.append(primary, primary_tok);
-						state.output.append(secondary, secondary_tok);
-					} else {
-						state.output.append(primary, this);
-					}
+					primary_tok = CSL.Util.cloneToken(this);
+					primary_tok.strings.suffix = "";
+					secondary_tok = new CSL.Token("text", CSL.SINGLETON);
+					secondary_tok.strings.suffix = "]" + this.strings.suffix;
+					secondary_tok.strings.prefix = " [";
+					state.output.append(primary, primary_tok);
+					state.output.append(secondary, secondary_tok);
+				} else {
+					state.output.append(primary, this);
 				}
 				return null;
 			};
 		} else {
 			return function (state, Item) {
-				var value, primary;
-				value = Item[myfieldname];
-				if (value) {
-					if ("number" === typeof value) {
-						value = "" + value;
-					}
-					primary = getTextSubField(value, transform_locale, transform_fallback);
-					state.output.append(primary, this);
+				var primary;
+				if (!variables[0]) {
+					return null;
 				}
+				primary = getTextSubField(Item, myfieldname, transform_locale, transform_fallback);
+				state.output.append(primary, this);
 				return null;
 			};
 		}
@@ -6057,6 +6301,91 @@ CSL.Transform = function (state) {
 		}
 	}
 	this.output = output;
+	function getStaticOrder (name, refresh) {
+		var static_ordering_val = false;
+		if (!refresh && name["static-ordering"]) {
+			static_ordering_val = true;
+		} else if (!(name.family.replace('"', '', 'g') + name.given).match(CSL.ROMANESQUE_REGEXP)) {
+			static_ordering_val = true;
+		} else if (name.multi && name.multi.main && name.multi.main.slice(0,2) == 'vn') {
+			static_ordering_val = true;
+		} else {
+			if (state.opt['auto-vietnamese-names']
+				&& (CSL.VIETNAMESE_NAMES.exec(name.family + " " + name.given)
+					&& CSL.VIETNAMESE_SPECIALS.exec(name.family + name.given))) {
+				static_ordering_val = true;
+			}
+		}
+		return static_ordering_val;
+	}
+	function name (state, name, langTags) {
+		var i, ret, optLangTag, ilen, key, langTag;
+		if (state.tmp.area.slice(-5) === "_sort") {
+			 langTags = state.opt["locale-sort"];
+		}
+		if ("string" === typeof langTags) {
+			langTags = [langTags];
+		}
+		if (!name.family) {
+			name.family = "";
+		}
+		if (!name.given) {
+			name.given = "";
+		}
+		var static_ordering_freshcheck = false;
+		var block_initialize = false;
+		var transliterated = false;
+		var static_ordering_val = getStaticOrder(name);
+		if (langTags && name.multi) {
+			for (i = 0, ilen = langTags.length; i < ilen; i += 1) {
+				langTag = langTags[i];
+				if (name.multi._key[langTag]) {
+					name = name.multi._key[langTag];
+					transliterated = true;
+					if (!state.opt['locale-use-original-name-format']) {
+						static_ordering_freshcheck = true;
+					} else {
+						if ((name.family.replace('"','','g') + name.given).match(CSL.ROMANESQUE_REGEXP)) {
+							block_initialize = true;
+						}
+					}
+					break;
+				}
+			}
+		}
+		name = {
+			family:name.family,
+			given:name.given,
+			"non-dropping-particle":name["non-dropping-particle"],
+			"dropping-particle":name["dropping-particle"],
+			suffix:name.suffix,
+			"static-ordering":static_ordering_val,
+			"parse-names":name["parse-names"],
+			"comma-suffix":name["comma-suffix"],
+			transliterated:transliterated,
+			block_initialize:block_initialize
+		}
+		if (static_ordering_freshcheck &&
+			!getStaticOrder(name, true)) {
+			name["static-ordering"] = false;
+		}
+		if (state.opt["parse-names"]
+			&& name["parse-names"] !== 0) {
+			state.parseName(name);
+		}
+		if (name.family && name.family.length && name.family.slice(0, 1) === '"' && name.family.slice(-1) === '"') {
+			name.family = name.family.slice(1, -1);
+		}
+		if (!name.literal && !name.given && name.family) {
+			name.literal = name.family;
+		}
+		if (name.literal) {
+			delete name.family;
+			delete name.given;
+		}
+		return name;
+	}
+	this.name = name;
 };
 CSL.Parallel = function (state) {
 	this.state = state;
@@ -6086,7 +6415,7 @@ CSL.Parallel.prototype.StartCitation = function (sortedItems, out) {
 CSL.Parallel.prototype.StartCite = function (Item, item, prevItemID) {
 	var position, len, pos, x, curr, master, last_id, prev_locator, curr_locator, is_master, parallel;
 	if (this.use_parallels) {
-		if (this.sets.value().length && this.sets.value()[0].itemId === Item.id) {
+		if (this.sets.value().length && this.sets.value()[0].itemId == Item.id) {
 			this.ComposeSet();
 		}
 		this.sortedItemsPos += 1;
@@ -6113,18 +6442,18 @@ CSL.Parallel.prototype.StartCite = function (Item, item, prevItemID) {
 		this.cite.back_forceme = [];
 		this.cite.position = position;
 		this.cite.Item = Item;
-		this.cite.itemId = Item.id;
-		this.cite.prevItemID = prevItemID;
+		this.cite.itemId = "" + Item.id;
+		this.cite.prevItemID = "" + prevItemID;
 		this.target = "front";
 		if (this.sortedItems && this.sortedItemsPos > 0 && this.sortedItemsPos < this.sortedItems.length) {
 			curr = this.sortedItems[this.sortedItemsPos][1];
-			last_id = this.sortedItems[(this.sortedItemsPos - 1)][1].id;
+			last_id = "" + this.sortedItems[(this.sortedItemsPos - 1)][1].id;
 			master = this.state.registry.registry[last_id].parallel;
 			prev_locator = false;
-			if (master === curr.id) {
+			if (master == curr.id) {
 				len = this.sortedItemsPos - 1;
 				for (pos = len; pos > -1; pos += -1) {
-					if (this.sortedItems[pos][1].id === Item.id) {
+					if (this.sortedItems[pos][1].id == Item.id) {
 						prev_locator = this.sortedItems[pos][1].locator;
 						break;
 					}
@@ -6152,7 +6481,7 @@ CSL.Parallel.prototype.StartVariable = function (variable) {
 		this.data.value = "";
 		this.data.blobs = [];
 		var is_mid = this.isMid(variable);
-		if (this.target === "front" && is_mid) {
+		if (this.target === "front" && is_mid && this.cite.front.length && (this.cite.front.length > 1 || this.cite.front.indexOf("names") === -1)) {
 			this.target = "mid";
 		} else if (this.target === "mid" && !is_mid && this.cite.Item.title) {
 			this.target = "back";
@@ -6305,6 +6634,10 @@ CSL.Parallel.prototype.ComposeSet = function (next_output_in_progress) {
 								this.state.registry.registry[cite.itemId].parallel = this.state.registry.registry[cite.prevItemID].parallel;
 							}
 							this.state.registry.registry[cite.itemId].siblings = this.state.registry.registry[cite.prevItemID].siblings;
+							if (!this.state.registry.registry[cite.itemId].siblings) {
+								this.state.registry.registry[cite.itemId].siblings = [];
+								CSL.debug("WARNING: adding missing siblings array to registry object");
+							}
 							this.state.registry.registry[cite.itemId].siblings.push(cite.itemId);
 						}
 					}
@@ -6661,31 +6994,59 @@ CSL.Util.Names.StartMiddleEnd.prototype.outputSegmentNames = function (seg) {
 	for (pos = 0; pos < len; pos += 1) {
 		this.namenum = parseInt(pos, 10);
 		this.name = this.segments[seg][pos];
-		if (this.name.literal) {
-			value = this.name.literal;
-			state.output.append(this.name.literal, "empty");
-		} else {
-			sequence = CSL.Util.Names.getNamepartSequence(state, seg, this.name);
-			state.output.openLevel(sequence[0][0]); // articular join
-			state.output.openLevel(sequence[0][1]); // join to last element (?)
-			state.output.openLevel(sequence[0][2]); // inter-element join (?)
-			this.outputNameParts(sequence[1]);
-			state.output.closeLevel();
-			state.output.openLevel(sequence[0][2]);
-			this.outputNameParts(sequence[2]);
-			state.output.closeLevel();
-			state.output.closeLevel();
-			this.outputNameParts(sequence[3]);
-			state.output.closeLevel();
-		}
+		var translit = state.opt["locale-pri"];
+		this.outputName(seg, pos, translit);
 	}
 	this.nameoffset += this.segments[seg].length;
 };
-CSL.Util.Names.StartMiddleEnd.prototype.outputNameParts = function (subsequence) {
+CSL.Util.Names.StartMiddleEnd.prototype.outputName = function (seg, pos, translit, tokenname) {
+	var name = this.state.transform.name(this.state, this.name, translit);
+	if (name.literal) {
+		value = name.literal;
+		this.state.output.append(name.literal, "empty");
+	} else {
+		if (name.transliterated) {
+			this.state.output.openLevel("empty");
+		}
+		if (tokenname) {
+			this.state.output.openLevel(tokenname);
+		} 
+		sequence = CSL.Util.Names.getNamepartSequence(this.state, seg, name);
+		this.state.output.openLevel(sequence[0][0]); // articular join
+		this.state.output.openLevel(sequence[0][1]); // join to last element (?)
+		this.state.output.openLevel(sequence[0][2]); // inter-element join (?)
+		this.outputNameParts(name, sequence[1]);
+		this.state.output.closeLevel();
+		this.state.output.openLevel(sequence[0][2]);
+		this.outputNameParts(name, sequence[2]);
+		this.state.output.closeLevel();
+		this.state.output.closeLevel();
+		this.outputNameParts(name, sequence[3]);
+		this.state.output.closeLevel();
+		if (tokenname) {
+			this.state.output.closeLevel(); // parens
+		}
+		if (this.state.opt["locale-show-original-names"] 
+			&& this.state.tmp.area === "bibliography"
+			&& name.transliterated 
+			&& this.name.given) {
+			var parens = new CSL.Blob();
+			parens.strings.prefix = " (";
+			parens.strings.suffix = ")";
+			this.state.output.addToken("parens", false, parens);
+			this.outputName(seg, pos, false, "parens");
+		}
+		if (name.transliterated) {
+			this.state.output.closeLevel(); // wrapper to avoid delimiter between names.
+		}
+	}
+	return name.transliterated;
+};
+CSL.Util.Names.StartMiddleEnd.prototype.outputNameParts = function (name, subsequence) {
 	var state, len, pos, key, namepart, initialize_with, preffie;
 	state = this.state;
 	for (var i = subsequence.length - 1; i > -1; i += -1) {
-	    if (!this.name[subsequence[i]]) {
+	    if (!name[subsequence[i]]) {
 		subsequence = subsequence.slice(0, i).concat(subsequence.slice(i + 1));
 	    }
 	}
@@ -6693,15 +7054,15 @@ CSL.Util.Names.StartMiddleEnd.prototype.outputNameParts = function (subsequence)
 	len = subsequence.length;
 	for (pos = 0; pos < len; pos += 1) {
 		key = subsequence[pos];
-		namepart = this.name[key];
+		namepart = name[key];
 		if (preffie) {
 		    namepart = preffie + namepart;
 		    preffie = "";
 		}
 		if (["given", "suffix", "dropping-particle"].indexOf(key) > -1 && 0 === state.tmp.disambig_settings.givens[state.tmp.nameset_counter][this.namenum + this.nameoffset]) {
-			if (!(key === "given" && !this.name.family)) {
+			if (!(key === "given" && !name.family)) {
 				if (key === "suffix") {
-					if (this.name.suffix !== this.name.suffix.toLowerCase()) {
+					if (name.suffix !== name.suffix.toLowerCase()) {
 						continue;
 					}
 				} else {
@@ -6717,7 +7078,7 @@ CSL.Util.Names.StartMiddleEnd.prototype.outputNameParts = function (subsequence)
 			continue;
 		}
 		if ("given" === key) {
-			if (1 === state.tmp.disambig_settings.givens[state.tmp.nameset_counter][(this.namenum + this.nameoffset)]) {
+			if (1 === state.tmp.disambig_settings.givens[state.tmp.nameset_counter][(this.namenum + this.nameoffset)] && !name.block_initialize) {
 				initialize_with = state.output.getToken("name").strings["initialize-with"];
 				namepart = CSL.Util.Names.initializeWith(state, namepart, initialize_with);
 			} else {
@@ -6771,7 +7132,7 @@ CSL.Util.Names.getCommonTerm = function (state, namesets) {
 	}
 	base_nameset = namesets[0];
 	varnames = [];
-		varnames.push(base_nameset.variable);
+	varnames.push(base_nameset.variable);
 	short_namesets = namesets.slice(1);
 	len = short_namesets.length;
 	for (pos = 0; pos < len; pos += 1) {
@@ -6784,11 +7145,16 @@ CSL.Util.Names.getCommonTerm = function (state, namesets) {
 		}
 	}
 	varnames.sort();
-	return varnames.join("");
+	var combined_terms = varnames.join("");
+	if (state.locale[state.opt.lang].terms[combined_terms]) {
+		return varnames.join("");
+	} else {
+		return false;
+	}
 };
 CSL.Util.Names.compareNamesets = function (base_nameset, nameset) {
 	var name, pos, len, part, ppos, llen;
-	if (!base_nameset.names || !nameset.names || base_nameset.names.length !== nameset.names.length) {
+	if (!base_nameset.names || !nameset.names || base_nameset.names.length !== nameset.names.length || base_nameset.etal !== nameset.etal) {
 		return false;
 	}
 	len = nameset.names.length;
@@ -6797,7 +7163,7 @@ CSL.Util.Names.compareNamesets = function (base_nameset, nameset) {
 		llen = CSL.NAME_PARTS.length;
 		for (ppos = 0; ppos < llen; ppos += 1) {
 			part = CSL.NAME_PARTS[ppos];
-			if (!base_nameset.names[pos] || base_nameset.names[pos][part] !== name[part]) {
+			if (!base_nameset.names[pos] || base_nameset.names[pos][part] != name[part]) {
 				return false;
 			}
 		}
@@ -6813,7 +7179,9 @@ CSL.Util.Names.unInitialize = function (state, name) {
 	punctlist = name.match(/(\-|\s+)/g);
 	ret = "";
 	for (pos = 0, len = namelist.length; pos < len; pos += 1) {
-		if (CSL.ALL_ROMANESQUE_REGEXP.exec(namelist[pos].slice(0,-1))) {
+		if (CSL.ALL_ROMANESQUE_REGEXP.exec(namelist[pos].slice(0,-1)) 
+			&& namelist[pos] 
+			&& namelist[pos] !== namelist[pos].toUpperCase()) {
 			namelist[pos] = namelist[pos].slice(0, 1) + namelist[pos].slice(1).toLowerCase();
 		}
 		ret += namelist[pos];
@@ -6915,7 +7283,7 @@ CSL.Util.Names.initNameSlices = function (state) {
 CSL.Engine.prototype.parseName = function (name) {
 	var m, idx;
 	if (! name["non-dropping-particle"] && name.family) {
-		m = name.family.match(/^([ a-z]+\s+)/);
+		m = name.family.match(/^([[ \'\u2019a-z]+\s+)/);
 		if (m) {
 			name.family = name.family.slice(m[1].length);
 			name["non-dropping-particle"] = m[1].replace(/\s+$/, "");
@@ -6933,7 +7301,7 @@ CSL.Engine.prototype.parseName = function (name) {
 		}
 	}
 	if (! name["dropping-particle"] && name.given) {
-		m = name.given.match(/^(\s+[ a-z]*[a-z])$/);
+		m = name.given.match(/^(\s+[ \'\u2019a-z]*[a-z])$/);
 		if (m) {
 			name.given = name.given.slice(0, m[1].length * -1);
 			name["dropping-particle"] = m[2].replace(/^\s+/, "");
@@ -7129,7 +7497,7 @@ CSL.Util.substituteStart = function (state, target) {
 	}
 };
 CSL.Util.substituteEnd = function (state, target) {
-	var func, bib_first_end, bib_other, if_end, choose_end, toplevel, hasval, author_substitute, printing, str;
+	var func, bib_first_end, bib_other, if_end, choose_end, toplevel, hasval, author_substitute, str;
 	state.build.render_nesting_level += -1;
 	if (state.build.render_nesting_level === 0) {
 		if (state.build.cls) {
@@ -7175,13 +7543,14 @@ CSL.Util.substituteEnd = function (state, target) {
 	if (toplevel && hasval) {
 		author_substitute = new CSL.Token("text", CSL.SINGLETON);
 		func = function (state, Item) {
-			printing = !state.tmp.suppress_decorations;
+			var text_esc = CSL.getSafeEscape(state.opt.mode, state.tmp.area);
+			var printing = !state.tmp.suppress_decorations;
 			if (printing) {
 				if (!state.tmp.rendered_name) {
 					state.tmp.rendered_name = state.output.string(state, state.tmp.name_node.blobs, false);
 					if (state.tmp.rendered_name) {
 						if (state.tmp.rendered_name === state.tmp.last_rendered_name) {
-							str = new CSL.Blob(false, state[state.tmp.area].opt["subsequent-author-substitute"]);
+							str = new CSL.Blob(false, text_esc(state[state.tmp.area].opt["subsequent-author-substitute"]));
 							state.tmp.name_node.blobs = [str];
 						}
 						state.tmp.last_rendered_name = state.tmp.rendered_name;
@@ -7199,6 +7568,20 @@ CSL.Util.substituteEnd = function (state, target) {
 		this.execs.push(func);
 	}
 };
+CSL.Util.padding = function (num) {
+	m = num.match(/\s*(-{0,1}[0-9]+)/);
+	if (m) {
+		num = parseInt(m[1], 10);
+		if (num < 0) {
+			num = 99999999999999999999 + num;
+		}
+		num = "" + num;
+		while (num.length < 20) {
+			num = "0" + num;
+		}
+	}
+	return num;
+}
 CSL.Util.LongOrdinalizer = function () {};
 CSL.Util.LongOrdinalizer.prototype.init = function (state) {
 	this.state = state;
@@ -7450,9 +7833,11 @@ CSL.Util.PageRangeMangler.getFunction = function (state) {
 	return ret_func;
 };
 CSL.Util.FlipFlopper = function (state) {
+	zotero.Debug('==========1===========');
 	var tagdefs, pos, len, p, entry, allTags, ret, def, esc, makeHashes, closeTags, flipTags, openToClose, openToDecorations, okReverse, hashes, allTagsLst, lst;
 	this.state = state;
 	this.blob = false;
+	this.quotechars = ["'", '"'];
 	tagdefs = [
 		["<i>", "</i>", "italics", "@font-style", ["italic", "normal","normal"], true],
 		["<b>", "</b>", "bold", "@font-weight", ["bold", "normal","normal"], true],
@@ -7464,11 +7849,18 @@ CSL.Util.FlipFlopper = function (state) {
 		['"',  '"',  "quotes",  "@quotes",  ["true",  "inner","true"],  "'"],
 		[" '",  "'",  "quotes",  "@quotes",  ["inner",  "true","true"],  '"']
 	];
+	zotero.Debug('==========10===========');
 	for (pos = 0; pos < 2; pos += 1) {
+		zotero.Debug('==========pos 1===========');
 		p = ["-", "-inner-"][pos];
 		entry = [];
-		entry.push(state.getTerm(("open" + p + "quote")));
-		entry.push(state.getTerm(("close" + p + "quote")));
+		var openq = state.getTerm(("open" + p + "quote"));
+		zotero.Debug('==========pos 2===========');
+		entry.push(openq);
+		this.quotechars.push(openq);
+		var closeq = state.getTerm(("close" + p + "quote"));
+		entry.push(closeq);
+		this.quotechars.push(closeq);
 		entry.push(("quote" + "s"));
 		entry.push(("@" + "quote" + "s"));
 		if ("-" === p) {
@@ -7479,6 +7871,7 @@ CSL.Util.FlipFlopper = function (state) {
 		entry.push(true);
 		tagdefs.push(entry);
 	}
+	zotero.Debug('==========20===========');
 	allTags = function (tagdefs) {
 		ret = [];
 		len = tagdefs.length;
@@ -7501,6 +7894,7 @@ CSL.Util.FlipFlopper = function (state) {
 		}
 		return ret;
 	};
+	zotero.Debug('==========30===========');
 	allTagsLst = allTags(tagdefs);
 	lst = [];
 	for (pos = 0, len = allTagsLst.length; pos < len; pos += 1) {
@@ -7511,6 +7905,7 @@ CSL.Util.FlipFlopper = function (state) {
 	allTagsLst = lst.slice();
 	this.allTagsRexMatch = new RegExp("(" + allTagsLst.join("|") + ")", "g");
 	this.allTagsRexSplit = new RegExp("(?:" + allTagsLst.join("|") + ")");
+	zotero.Debug('==========40===========');
 	makeHashes = function (tagdefs) {
 		closeTags = {};
 		flipTags = {};
@@ -7527,14 +7922,18 @@ CSL.Util.FlipFlopper = function (state) {
 		}
 		return [closeTags, flipTags, openToClose, openToDecorations, okReverse];
 	};
+	zotero.Debug('==========50===========');
 	hashes = makeHashes(tagdefs);
 	this.closeTagsHash = hashes[0];
 	this.flipTagsHash = hashes[1];
 	this.openToCloseHash = hashes[2];
 	this.openToDecorations = hashes[3];
 	this.okReverseHash = hashes[4];
+	zotero.Debug('==========60===========');
+	
 };
 CSL.Util.FlipFlopper.prototype.init = function (str, blob) {
+	this.txt_esc = CSL.getSafeEscape(this.state.opt.mode, this.state.tmp.area);
 	if (!blob) {
 		this.strs = this.getSplitStrings(str);
 		this.blob = new CSL.Blob();
@@ -7630,9 +8029,9 @@ CSL.Util.FlipFlopper.prototype.getSplitStrings = function (str) {
 		head = strs.slice(0, (badTagPos - 1));
 		tail = strs.slice((badTagPos + 2));
 		sep = strs[badTagPos];
-		if (sep.length && sep[0] !== "<" && this.openToDecorations[sep]) {
+		if (sep.length && sep[0] !== "<" && this.openToDecorations[sep] && this.quotechars.indexOf(sep.replace(/\s+/g,"")) === -1) {
 			params = this.openToDecorations[sep];
-			sep = this.state.fun.decorate[params[0]][params[1][0]](this.state);
+			sep = this.state.fun.decorate[params[0]][params[1]](this.state);
 		}
 		resplice = strs[(badTagPos - 1)] + sep + strs[(badTagPos + 1)];
 		head.push(resplice);
@@ -7640,8 +8039,8 @@ CSL.Util.FlipFlopper.prototype.getSplitStrings = function (str) {
 	}
 	len = strs.length;
 	for (pos = 0; pos < len; pos += 2) {
-		strs[pos] = strs[pos].replace("'", "\u02bc");
-		strs[pos] = CSL.Output.Formats[this.state.opt.mode].text_escape(strs[pos]);
+		strs[pos] = strs[pos].replace("'", "\u2019");
+		strs[pos] = this.txt_esc(strs[pos]);
 	}
 	return strs;
 };
@@ -7753,6 +8152,13 @@ CSL.Util.FlipFlopper.prototype.addFlipFlop = function (blob, fun) {
 	return newdecor;
 };
 CSL.Output.Formatters = {};
+CSL.getSafeEscape = function(outputModeOpt, outputArea) {
+	if (["bibliography", "citation"].indexOf(outputArea) > -1) {
+		return CSL.Output.Formats[outputModeOpt].text_escape;
+	} else {
+		return function (txt) { return txt; };
+	}
+};
 CSL.Output.Formatters.strip_periods = function (state, string) {
     return string.replace(/\./g, " ").replace(/\s*$/g, "").replace(/\s+/g, " ");
 };
@@ -7820,6 +8226,15 @@ CSL.Output.Formatters.title = function (state, string) {
 		if (words[pos].length !== 0 && (words[pos].length !== 1 || !/\s+/.test(words[pos]))) {
 			upperCaseVariant = words[pos].toUpperCase();
 			lowerCaseVariant = words[pos].toLowerCase();
+			var totallyskip = false;
+			if (!isUpperCase || (words.length === 1 && words[pos].length < 4)) {
+				for (var j = 0, jlen = lowerCaseVariant.length; j < jlen; j += 1) {
+					if (lowerCaseVariant[j] !== upperCaseVariant[j] 
+						&& words[pos][j] === upperCaseVariant[j]) {
+						  totallyskip = true;
+					}
+				}
+			}
 			if (isUpperCase || words[pos] === lowerCaseVariant) {
 				skip = false;
 				len = CSL.SKIP_WORDS.length;
@@ -7827,7 +8242,7 @@ CSL.Output.Formatters.title = function (state, string) {
 					skipword = CSL.SKIP_WORDS[ppos];
 					idx = lowerCaseVariant.indexOf(skipword);
 					if (idx > -1) {
-						tmp = lowerCaseVariant.slice(0, idx, idx + lowerCaseVariant.slice(skipword.length));
+						tmp = lowerCaseVariant.slice(0, idx) + lowerCaseVariant.slice(idx + skipword.length);
 						if (!tmp.match(/[a-zA-Z]/)) {
 							skip = true;
 						}
@@ -7840,10 +8255,12 @@ CSL.Output.Formatters.title = function (state, string) {
 				} else {
 					aftercolon = false;
 				}
-				if (skip && notfirst && notlast && (firstword || aftercolon)) {
-					words[pos] = lowerCaseVariant;
-				} else {
-					words[pos] = upperCaseVariant.slice(0, 1) + lowerCaseVariant.substr(1);
+				if (!totallyskip) {
+					if (skip && notfirst && notlast && (firstword || aftercolon)) {
+						words[pos] = lowerCaseVariant;
+					} else {
+						words[pos] = upperCaseVariant.slice(0, 1) + lowerCaseVariant.substr(1);
+					}
 				}
 			}
 			previousWordIndex = pos;
@@ -7886,7 +8303,7 @@ CSL.Output.Formatters.serializeItemAsRdfA = function (Item) {
 CSL.Output.Formats = function () {};
 CSL.Output.Formats.prototype.html = {
 	"text_escape": function (text) {
-		return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace("  ", "&nbsp; ", "g");
+		return text.replace(/&/g, "&#38;").replace(/</g, "&#60;").replace(/>/g, "&#62;").replace("  ", "&#160; ", "g");
 	},
 	"bibstart": "<div class=\"csl-bib-body\">\n",
 	"bibend": "</div>",
@@ -8066,9 +8483,15 @@ CSL.Registry = function (state) {
 	this.sorter = new CSL.Registry.Comparifier(state, "bibliography_sort");
 	this.getSortedIds = function () {
 		ret = [];
-		len = this.reflist.length;
-		for (pos = 0; pos < len; pos += 1) {
-			ret.push(this.reflist[pos].id);
+		for (i = 0, ilen = this.reflist.length; i < ilen; i += 1) {
+			ret.push("" + this.reflist[i].id);
+		}
+		return ret;
+	};
+	this.getSortedRegistryItems = function () {
+		ret = [];
+		for (i = 0, ilen = this.reflist.length; i < ilen; i += 1) {
+			ret.push(this.reflist[i]);
 		}
 		return ret;
 	};
@@ -8079,17 +8502,17 @@ CSL.Registry.prototype.init = function (myitems, uncited_flag) {
 	if (uncited_flag && this.mylist && this.mylist.length) {
 		this.uncited = myitems;
 		for (pos = 0, len = myitems.length; pos < len; pos += 1) {
-			if (!this.myhash[myitems[pos]]) {
-				this.mylist.push(myitems[pos]);
+			if (!this.myhash[myitems[pos]] && this.mylist.indexOf(myitems[pos]) === -1) {
+				this.mylist.push("" + myitems[pos]);
 			}
 		}
 	} else {
-		this.mylist = myitems;
+		this.mylist = myitems.concat(this.uncited);
 	}
 	this.myhash = {};
-	len = myitems.length;
+	len = this.mylist.length;
 	for (pos = 0; pos < len; pos += 1) {
-		this.myhash[myitems[pos]] = true;
+		this.myhash[this.mylist[pos]] = true;
 	}
 	this.refreshes = {};
 	this.touched = {};
@@ -8118,7 +8541,7 @@ CSL.Registry.prototype.dodeletes = function (myhash) {
 			}
 			len = this.ambigcites[ambig].length;
 			for (pos = 0; pos < len; pos += 1) {
-				id = this.ambigcites[ambig][pos];
+				id = "" + this.ambigcites[ambig][pos];
 				this.refreshes[id] = true;
 			}
 			delete this.registry[key];
@@ -8139,13 +8562,14 @@ CSL.Registry.prototype.doinserts = function (mylist) {
 			akey = CSL.getAmbiguousCite.call(this.state, Item);
 			this.akeys[akey] = true;
 			newitem = {
-				"id": item,
+				"id": "" + item,
 				"seq": 0,
 				"offset": 0,
 				"sortkeys": false,
 				"ambig": false,
 				"rendered": false,
-				"disambig": false
+				"disambig": false,
+				"ref": Item
 			};
 			this.registry[item] = newitem;
 			abase = CSL.getAmbigConfig.call(this.state);
@@ -8216,7 +8640,7 @@ CSL.Registry.prototype.renumber = function () {
 	for (pos = 0; pos < len; pos += 1) {
 		item = this.reflist[pos];
 		item.seq = (pos + 1);
-		if (this.state.tmp.taintedItemIDs && item.seq !== this.oldseq[item.id]) {
+		if (this.state.tmp.taintedItemIDs && item.seq != this.oldseq[item.id]) {
 			if (this.state.opt.update_mode === CSL.NUMERIC) {
 				this.state.tmp.taintedItemIDs[item.id] = true;
 			}
@@ -8239,6 +8663,7 @@ CSL.Registry.prototype.sorttokens = function () {
 };
 CSL.Registry.Comparifier = function (state, keyset) {
 	var sort_directions, len, pos, compareKeys;
+	var sortCompare = CSL.getSortCompare();
 	sort_directions = state[keyset].opt.sort_directions;
     this.compareKeys = function (a, b) {
 		len = a.sortkeys.length;
@@ -8251,7 +8676,7 @@ CSL.Registry.Comparifier = function (state, keyset) {
 			} else if ("undefined" === typeof b.sortkeys[pos]) {
 				cmp = sort_directions[pos][0];
 			} else {
-				cmp = a.sortkeys[pos].toLocaleLowerCase().localeCompare(b.sortkeys[pos].toLocaleLowerCase());
+				cmp = sortCompare(a.sortkeys[pos], b.sortkeys[pos]);
 			}
 			if (0 < cmp) {
 				return sort_directions[pos][1];
@@ -8280,6 +8705,15 @@ CSL.Registry.prototype.compareRegistryTokens = function (a, b) {
 	return 0;
 };
 CSL.Registry.prototype.registerAmbigToken = function (akey, id, ambig_config, tainters) {
+	if (this.registry[id] && this.registry[id].disambig && this.registry[id].disambig.names) {
+		for (var i = 0, ilen = ambig_config.names.length; i < ilen; i += 1) {
+			var new_names_params = ambig_config.names[i];
+			var old_names_params = this.registry[id].disambig.names[i];
+			if (new_names_params !== old_names_params) {
+				this.state.tmp.taintedItemIDs[id] = true;
+			}
+		}
+	}
 	if (!this.ambigcites[akey]) {
 		this.ambigcites[akey] = [];
 	}
@@ -8289,7 +8723,7 @@ CSL.Registry.prototype.registerAmbigToken = function (akey, id, ambig_config, ta
 	this.registry[id].ambig = akey;
 	var dome = false;
 	if (tainters) {
-		this.registry[id].disambig = CSL.cloneAmbigConfig.call(this.state, ambig_config, this.registry[id].disambig, id, tainters);
+		this.registry[id].disambig = CSL.cloneAmbigConfig.call(this.state, ambig_config, this.registry[id].disambig, tainters);
 	} else {
 		this.registry[id].disambig = CSL.cloneAmbigConfig(ambig_config);
 	}
@@ -8337,12 +8771,13 @@ CSL.Registry.NameReg = function (state) {
 		}
 		ikey = CSL.Util.Names.initializeWith(state, skey, "%s");
 		if (state.opt["givenname-disambiguation-rule"] === "by-cite") {
-			pkey = itemid + pkey;
+			pkey = "" + itemid + pkey;
 		}
 	};
 	evalname = function (item_id, nameobj, namenum, request_base, form, initials) {
 		var pos, len, items, param;
-		set_keys(this.state, item_id, nameobj);
+		var nameobj = state.transform.name(state, nameobj, state.opt["locale-pri"]);
+		set_keys(this.state, "" + item_id, nameobj);
 		if ("undefined" === typeof this.namereg[pkey] || "undefined" === typeof this.namereg[pkey].ikey[ikey]) {
 			return request_base;
 		}
@@ -8379,7 +8814,7 @@ CSL.Registry.NameReg = function (state) {
 			}
 		}
 		if (param === 0) {
-			pos = this.namereg[pkey].ikey[ikey].items.indexOf(item_id);
+			pos = this.namereg[pkey].ikey[ikey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].ikey[ikey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8387,7 +8822,7 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			pos = this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf(item_id);
+			pos = this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].ikey[ikey].skey[skey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8395,11 +8830,11 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			if (this.namereg[pkey].items.indexOf(item_id) === -1) {
-				this.namereg[pkey].items.push(item_id);
+			if (this.namereg[pkey].items.indexOf("" + item_id) === -1) {
+				this.namereg[pkey].items.push("" + item_id);
 			}
 		} else if (param === 1) {
-			pos = this.namereg[pkey].items.indexOf(item_id);
+			pos = this.namereg[pkey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8407,7 +8842,7 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			pos = this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf(item_id);
+			pos = this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].ikey[ikey].skey[skey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8415,11 +8850,11 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			if (this.namereg[pkey].ikey[ikey].items.indexOf(item_id) === -1) {
-				this.namereg[pkey].ikey[ikey].items.push(item_id);
+			if (this.namereg[pkey].ikey[ikey].items.indexOf("" + item_id) === -1) {
+				this.namereg[pkey].ikey[ikey].items.push("" + item_id);
 			}
 		} else if (param === 2) {
-			pos = this.namereg[pkey].items.indexOf(item_id);
+			pos = this.namereg[pkey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8427,7 +8862,7 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			pos = this.namereg[pkey].ikey[ikey].items.indexOf(item_id);
+			pos = this.namereg[pkey].ikey[ikey].items.indexOf("" + item_id);
 			items = this.namereg[pkey].ikey[ikey].items;
 			if (pos > -1) {
 				items = items.slice(0, pos).concat(items.slice(pos + 1));
@@ -8435,8 +8870,8 @@ CSL.Registry.NameReg = function (state) {
 			for (pos = 0, len = items.length; pos < len; pos += 1) {
 				this.state.tmp.taintedItemIDs[items[pos]] = true;
 			}
-			if (this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf(item_id) === -1) {
-				this.namereg[pkey].ikey[ikey].skey[skey].items.push(item_id);
+			if (this.namereg[pkey].ikey[ikey].skey[skey].items.indexOf("" + item_id) === -1) {
+				this.namereg[pkey].ikey[ikey].skey[skey].items.push("" + item_id);
 			}
 		}
 		return param;
@@ -8444,12 +8879,12 @@ CSL.Registry.NameReg = function (state) {
 	delitems = function (ids) {
 		var i, item, pos, len, posA, posB, id, fullkey, llen, ppos, otherid;
 		if ("string" === typeof ids || "number" === typeof ids) {
-			ids = [ids];
+			ids = ["" + ids];
 		}
 		ret = {};
 		len = ids.length;
 		for (pos = 0; pos < len; pos += 1) {
-			id = ids[pos];
+			id = "" + ids[pos];
 			if (!this.nameind[id]) {
 				continue;
 			}
@@ -8466,7 +8901,7 @@ CSL.Registry.NameReg = function (state) {
 					items = this.namereg[pkey].items;
 					if (skey) {
 						myitems = this.namereg[pkey].ikey[ikey].skey[skey].items;
-						posB = myitems.indexOf(id);
+						posB = myitems.indexOf("" + id);
 						if (posB > -1) {
 							this.namereg[pkey].ikey[ikey].skey[skey].items = myitems.slice(0, posB).concat(myitems.slice([(posB + 1)]));
 						}
@@ -8479,7 +8914,7 @@ CSL.Registry.NameReg = function (state) {
 						}
 					}
 					if (ikey) {
-						posB = this.namereg[pkey].ikey[ikey].items.indexOf(id);
+						posB = this.namereg[pkey].ikey[ikey].items.indexOf("" + id);
 						if (posB > -1) {
 							items = this.namereg[pkey].ikey[ikey].items.slice();
 							this.namereg[pkey].ikey[ikey].items = items.slice(0, posB).concat(items.slice([posB + 1]));
@@ -8493,7 +8928,7 @@ CSL.Registry.NameReg = function (state) {
 						}
 					}
 					if (pkey) {
-						posB = this.namereg[pkey].items.indexOf(id);
+						posB = this.namereg[pkey].items.indexOf("" + id);
 						if (posB > -1) {
 							items = this.namereg[pkey].items.slice();
 							this.namereg[pkey].items = items.slice(0, posB).concat(items.slice([posB + 1], items.length));
@@ -8514,7 +8949,8 @@ CSL.Registry.NameReg = function (state) {
 		return ret;
 	};
 	addname = function (item_id, nameobj, pos) {
-		set_keys(this.state, item_id, nameobj);
+		var nameobj = state.transform.name(state, nameobj, state.opt["locale-pri"]);
+		set_keys(this.state, "" + item_id, nameobj);
 		if (pkey) {
 			if ("undefined" === typeof this.namereg[pkey]) {
 				this.namereg[pkey] = {};
@@ -8594,7 +9030,7 @@ CSL.Disambiguation.prototype.scanItems = function (list, phase) {
 	Item = list[1][0];
 	this.scanlist = list[1];
 	this.partners = [];
-    var tempResult = this.getItem(Item);
+    var tempResult = this.getItemDesc(Item);
     this.base = tempResult[0];
     this.maxvals = tempResult[1];
     this.minval = tempResult[2];
@@ -8604,7 +9040,9 @@ CSL.Disambiguation.prototype.scanItems = function (list, phase) {
 	this.nonpartners = [];
 	for (pos = 1, len = list[1].length; pos < len; pos += 1) {
 		otherItem = list[1][pos];
-		otherItemCite = this.getItem(otherItem)[3];
+		otherItemData = this.getItemDesc(otherItem);
+		otherItemCite = otherItemData[3];
+		otherItemBase = otherItemData[0];
 		if (ItemCite === otherItemCite) {
 			this.clashes[phase] += 1;
 			this.partners.push(otherItem);
@@ -8619,9 +9057,11 @@ CSL.Disambiguation.prototype.evalScan = function (ismax) {
 CSL.Disambiguation.prototype.disNames = function (ismax) {
 	var pos, len;
 	if (this.clashes[1] === 0) {
-		this.state.registry.registerAmbigToken(this.akey, this.partners[0].id, this.base);
+		mybase = CSL.cloneAmbigConfig(this.base);
+		mybase.year_suffix = false;
+		this.state.registry.registerAmbigToken(this.akey, "" + this.partners[0].id, mybase);
 		if (this.nonpartners.length === 1) {
-			this.state.registry.registerAmbigToken(this.akey, this.nonpartners[0].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + this.nonpartners[0].id, this.base);
 			this.lists[this.listpos] = [this.base,[]];
 		} else {
 			this.lists[this.listpos] = [this.base, this.nonpartners];
@@ -8629,14 +9069,14 @@ CSL.Disambiguation.prototype.disNames = function (ismax) {
 	} else if (this.clashes[1] < this.clashes[0]) {
 		this.lists[this.listpos] = [this.base, this.partners];
 		if (this.nonpartners.length === 1) {
-			this.state.registry.registerAmbigToken(this.akey, this.nonpartners[0].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + this.nonpartners[0].id, this.base);
 		} else {
 			this.lists.push([this.base, this.nonpartners]);
 		}
 	} else {
 		if (ismax || this.advance_mode) {
 			for (pos = 0, len = this.partners.length; pos < len; pos += 1) {
-				this.state.registry.registerAmbigToken(this.akey, this.partners[pos].id, this.base);
+				this.state.registry.registerAmbigToken(this.akey, "" + this.partners[pos].id, this.base);
 			}
 			if (ismax) {
 				this.lists[this.listpos] = [this.base, this.nonpartners];
@@ -8649,10 +9089,14 @@ CSL.Disambiguation.prototype.disNames = function (ismax) {
 CSL.Disambiguation.prototype.disGivens = function (ismax) {
 	var pos, len;
 	if (this.clashes[1] === 0) {
-		this.base = this.decrementNames();
-		this.state.registry.registerAmbigToken(this.akey, this.partners[0].id, this.base);
+		if (this.clashes[0] === 1) {
+			this.base = this.decrementNames();
+		}
+		mybase = CSL.cloneAmbigConfig(this.base);
+		mybase.year_suffix = false;
+		this.state.registry.registerAmbigToken(this.akey, "" + this.partners[0].id, mybase);
 		if (this.nonpartners.length === 1) {
-			this.state.registry.registerAmbigToken(this.akey, this.nonpartners[0].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + this.nonpartners[0].id, this.base);
 			this.lists[this.listpos] = [this.base,[]];
 		} else {
 			this.lists[this.listpos] = [this.base, this.nonpartners];
@@ -8660,7 +9104,7 @@ CSL.Disambiguation.prototype.disGivens = function (ismax) {
 	} else if (this.clashes[1] < this.clashes[0]) {
 		this.lists[this.listpos] = [this.base, this.partners];
 		if (this.nonpartners.length === 1) {
-			this.state.registry.registerAmbigToken(this.akey, this.nonpartners[0].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + this.nonpartners[0].id, this.base);
 		} else {
 			this.lists.push([this.base, this.nonpartners]);
 		}
@@ -8668,7 +9112,7 @@ CSL.Disambiguation.prototype.disGivens = function (ismax) {
 		this.base = CSL.cloneAmbigConfig(this.oldbase);
 		if (ismax || this.advance_mode) {
 			for (pos = 0, len = this.partners.length; pos < len; pos += 1) {
-				this.state.registry.registerAmbigToken(this.akey, this.partners[pos].id, this.base);
+				this.state.registry.registerAmbigToken(this.akey, "" + this.partners[pos].id, this.base);
 			}
 			if (ismax) {
 				this.lists[this.listpos] = [this.base, this.nonpartners];
@@ -8681,9 +9125,11 @@ CSL.Disambiguation.prototype.disGivens = function (ismax) {
 CSL.Disambiguation.prototype.disExtraText = function () {
 	var pos, len;
 	if (this.clashes[1] === 0) {
-		this.state.registry.registerAmbigToken(this.akey, this.partners[0].id, this.base);
+		mybase = CSL.cloneAmbigConfig(this.base);
+		mybase.year_suffix = false;
+		this.state.registry.registerAmbigToken(this.akey, "" + this.partners[0].id, mybase);
 		if (this.nonpartners.length === 1) {
-			this.state.registry.registerAmbigToken(this.akey, this.nonpartners[0].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + this.nonpartners[0].id, this.base);
 			this.lists[this.listpos] = [this.base,[]];
 		} else {
 			this.lists[this.listpos] = [this.base, this.nonpartners];
@@ -8703,9 +9149,9 @@ CSL.Disambiguation.prototype.disYears = function () {
 	tokens.sort(this.state.registry.sorter.compareKeys);
 	for (pos = 0, len = tokens.length; pos < len; pos += 1) {
 		if (pos === 0) {
-			this.state.registry.registerAmbigToken(this.akey, tokens[pos].id, this.base, this.scanlist);
+			this.state.registry.registerAmbigToken(this.akey, "" + tokens[pos].id, this.base, this.scanlist);
 		} else {
-			this.state.registry.registerAmbigToken(this.akey, tokens[pos].id, this.base);
+			this.state.registry.registerAmbigToken(this.akey, "" + tokens[pos].id, this.base);
 		}
 		tokens[pos].disambig.year_suffix = ""+pos;
 	}
@@ -8788,7 +9234,7 @@ CSL.Disambiguation.prototype.incrementDisambig = function () {
 	}
 	return maxed;
 };
-CSL.Disambiguation.prototype.getItem = function (Item) {
+CSL.Disambiguation.prototype.getItemDesc = function (Item, forceMax) {
 	var str, maxvals, minval, base;
 	str = CSL.getAmbiguousCite.call(this.state, Item, this.base);
 	maxvals = CSL.getMaxVals.call(this.state);
@@ -8798,15 +9244,37 @@ CSL.Disambiguation.prototype.getItem = function (Item) {
 };
 CSL.Disambiguation.prototype.initVars = function (akey) {
 	var pos, len;
-	var myIds, myItems;
+	var myIds, myItemBundles, myItems;
 	this.lists = [];
 	this.base = false;
 	this.akey = akey;
-	myItems = [];
+	myItemBundles = [];
 	myIds = this.ambigcites[akey];
 	if (myIds && myIds.length > 1) {
-		for (pos = 0, len = myIds.length; pos < len; pos += 1) {
-			myItems.push(this.state.retrieveItem(myIds[pos]));
+		for (var i = 0, ilen = myIds.length; i < ilen; i += 1) {
+			var myItem = this.state.retrieveItem("" + myIds[i]);
+			myItemBundles.push([this.getItemDesc(myItem), myItem]);
+		}
+		myItemBundles.sort(
+ 			function (a, b) {
+   				if (a[0][1] > b[0][1]) {
+					return 1;
+				} else if (a[0][1] < b[0][1]) {
+					return -1;
+				} else {
+					if (a[1].id > b[1].id) {
+						return 1;
+					} else if (a[1].id < b[1].id) {
+						return -1;
+					} else {
+						return 0;
+					}
+				}
+			}
+ 		);
+		var myItems = [];
+		for (var i = 0, ilen = myItemBundles.length; i < ilen; i += 1) {
+			myItems.push(myItemBundles[i][1]);
 		}
 		this.lists.push([this.base, myItems]);
 	}
