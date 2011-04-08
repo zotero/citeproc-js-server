@@ -1,0 +1,7 @@
+{
+    "author": [{
+                "family" : "Family",
+                "given": "Given",
+                "parse-names" : false
+                }]
+};

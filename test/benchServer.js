@@ -25,15 +25,16 @@
 
 //process command line args for config
 var config = {
-    'maxconnections':3,
+    'maxconnections':10,
     'duration':3,
-    'maxtotalrequests':1,
+    'maxtotalrequests':100,
     'showoutput':false,
     'style':'chicago-author-date',
     'responseformat':'json',
     'bibliography':'1',
     'citations':'0',
-    'outputformat':'html'
+    'outputformat':'html',
+    'memoryUsage':false
 };
 var args = process.argv;
 var sys = require('sys');
@@ -64,6 +65,9 @@ for(var i = 1; i < args.length; i++){
         console.log(config);
         process.exit();
     }
+    else if(args[i].substr(0, 11) == 'memoryUsage'){
+        config.memoryUsage = true;
+    }
 }
 
 var fs = require('fs');
@@ -78,6 +82,23 @@ for(var i=0; i < bib1.length; i++){
     //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
 }
 bib1post.citationClusters = loadcites.citations1;
+var styleStrings = ['apsa', 
+                    'apa', 
+                    'asa', 
+                    'chicago-author-date', 
+                    'chicago-fullnote-bibliography', 
+                    'chicago-note-bibliography', 
+                    'chicago-note', 
+                    'harvard1', 
+                    'ieee', 
+                    'mhra', 
+                    'mhra_note_without_bibliography', 
+                    'mla', 
+                    'nlm', 
+                    'nature', 
+                    'vancouver'
+                    ];
+
 
 reqBody = JSON.stringify(bib1post);
 //console.log(bib1post);
@@ -92,6 +113,11 @@ var randReqCombo = function(){
         }
     }
     return post;
+}
+
+var randStyle = function(){
+    var randomnumber=Math.floor(Math.random()*(styleStrings.length));
+    return styleStrings[randomnumber];
 }
 
 var continueRequests = true;
@@ -149,8 +175,26 @@ var makeRequests = function(){
 //make a single request
 var singleRequest = function(){
     console.log("making new request");
+    
+    if(config.memoryUsage){
+        var request = localCiteConn.request('POST', '/?memoryUsage=1', {'host':targetHost});
+        request.on('response', function (response) {
+            console.log("STATUS: " + response.statusCode);
+            response.setEncoding('utf8');
+            response.on('data', function (chunk) {
+                console.log(chunk);
+            });
+        });
+        request.write(reqBody, 'utf8');
+        request.end();
+        return;
+    }
 //    console.log(config);
-    var qstring = 'style=' + config.style + '&responseformat=' + config.responseformat;
+    var useStyleString = config.style;
+    if(config.style == 'rand'){
+        useStyleString = randStyle();
+    }
+    var qstring = 'style=' + useStyleString + '&responseformat=' + config.responseformat;
     if(config.bibliography == '0'){qstring += '&bibliography=0';}
     if(config.citations == '1'){qstring += '&citations=1';}
     if(config.outputformat != 'html'){qstring += '&outputformat=' + config.outputformat;}
