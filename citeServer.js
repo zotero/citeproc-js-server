@@ -28,12 +28,14 @@
 var fs = require('fs');
 var http = require('http');
 var url = require('url');
+var citeproc = require('./citeprocnode');
 
 //global namespace citation server variable
 var zcite = {};
 global.zcite = zcite;
 
 zcite.config = JSON.parse(fs.readFileSync('./citeServerConf.json', 'utf8'));
+zcite.citeproc = citeproc;
 
 //process command line args
 var args = process.argv;
@@ -46,7 +48,7 @@ for(var i = 1; i < args.length; i++){
 //load non-builtin modules using paths from config
 var Step = require('step');//require(zcite.config.stepPath);
 
-zcite.CSL = require(zcite.config.citeprocmodulePath).CSL;
+//zcite.CSL = require(zcite.config.citeprocmodulePath).CSL;
 zcite.cslFetcher = require(zcite.config.cslFetcherPath).cslFetcher;
 zcite.cslFetcher.init(zcite.config);
 
@@ -150,7 +152,8 @@ zcite.createEngine = function(zcreq, callback){
     };
     zcite.debug("cpSys created", 5);
     zcite.debug(zcreq.config.locale, 5);
-    var citeproc = new zcite.CSL.Engine(cpSys, zcreq.cslXml, zcreq.config.locale);
+    //var citeproc = new zcite.CSL.Engine(cpSys, zcreq.cslXml, zcreq.config.locale);
+    var citeproc = zcite.citeproc.createEngine(cpSys, zcreq.cslXml, zcreq.config.locale);
     zcite.debug('engine created', 5);
     zcreq.citeproc = citeproc;
     //run the actual request now that citeproc is initialized (need to run this from cacheLoadEngine instead?)
@@ -221,7 +224,7 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
     zcite.cachedEngineCount++;
     if(zcite.cachedEngineCount > 60){
         zcite.cleanCache();
-        zcite.cachedEngineCount = 0;
+        zcite.cachedEngineCount = zcite.config.engineCacheSize;
     }
 };
 

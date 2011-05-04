@@ -27,7 +27,7 @@
 var config = {
     'maxconnections':10,
     'duration':3,
-    'maxtotalrequests':100,
+    'maxtotalrequests':1,
     'showoutput':false,
     'style':'chicago-author-date',
     'responseformat':'json',
@@ -67,6 +67,9 @@ for(var i = 1; i < args.length; i++){
     }
     else if(args[i].substr(0, 11) == 'memoryUsage'){
         config.memoryUsage = true;
+    }
+    else if(args[i].substr(0, 11) == 'maxRequests'){
+        config.maxtotalrequests = parseInt(args[i].substr(12));
     }
 }
 
