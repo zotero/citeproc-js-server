@@ -10,11 +10,11 @@ var sampleCites = citeproc.sampleCites;
 //***BEGIN NODEJS CODE
 process.on('uncaughtException', function (err) {
     if(typeof err == "string"){
-        zotero.Debug("Caught exception: " + err);
+        console.log("Caught exception: " + err);
     }
     else{
-        zotero.Debug('Caught exception: ' + err.name + " : " + err.message);
-        zotero.Debug(err.stack);
+        console.log('Caught exception: ' + err.name + " : " + err.message);
+        console.log(err.stack);
     }
 });
 
@@ -51,9 +51,10 @@ var cpSys = {
 };
 console.log("cpSys created");
 
-var engine = citeproc.citeproc(cpSys, chicagoAuthorDate, 'en-US', 'en-US');
-
+var engine = citeproc.createEngine(cpSys, chicagoAuthorDate, 'en-US', 'en-US');
+console.log("engine created");
 engine.updateItems(["ITEM-1", "ITEM-3", "ITEM-4", "ITEM-5", "ITEM-6", "ITEM-7", "ITEM-8","ITEM-9"]);
+console.log("items updated");
 var mybib = engine.makeBibliography();
 console.log(mybib);
 //zotero.Debug(mybib);
