@@ -72,8 +72,9 @@ for(var i = 1; i < args.length; i++){
         config.maxtotalrequests = parseInt(args[i].substr(12));
     }
     else if(args[i].substr(0, 15) == 'customStylePath'){
-        config.customStylePath = parseInt(args[i].substr(16));
-        config.customStyleXml = fs.readFileSync(config.customStylePath);
+        config.customStylePath = args[i].substr(16);
+        console.log(config.customStylePath);
+        config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
     }
 }
 

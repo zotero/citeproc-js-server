@@ -144,7 +144,7 @@ cslFetcher.fetchStyle = function(zcreq, callback){
     try{
         if(zcreq.postedStyle){
             zcite.debug("using the posted style", 5);
-            zcreq.cslXml = zcreq.postObj.stylexml;
+            zcreq.cslXml = zcreq.postObj.styleXml;
             callback(null, zcreq);
         }
         else if(zcreq.styleUrlObj.host == 'www.zotero.org'){

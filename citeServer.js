@@ -152,8 +152,6 @@ zcite.createEngine = function(zcreq, callback){
     };
     zcite.debug("cpSys created", 5);
     zcite.debug(zcreq.config.locale, 5);
-    zcite.debug("CSL XML:");
-    zcite.debug(zcreq.cslXml);
     //var citeproc = new zcite.CSL.Engine(cpSys, zcreq.cslXml, zcreq.config.locale);
     try{
         var citeproc = zcite.citeproc.createEngine(cpSys, zcreq.cslXml, zcreq.config.locale);
@@ -588,7 +586,7 @@ http.createServer(function (request, response) {
             }
             
             var postedStyle = false;
-            if(postObj.hasOwnProperty('stylexml')){
+            if(postObj.hasOwnProperty('styleXml')){
                 postedStyle = true;
             }
             zcreq.postedStyle = postedStyle;
@@ -605,6 +603,7 @@ http.createServer(function (request, response) {
                         zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
                         zcite.cslFetcher.resolveStyle(zcreq, this);
                     }
+                    this(null, zcreq);
                     //return zcreq;
                 },
                 function tryCachedEngine(err, zcreq){
