@@ -71,6 +71,10 @@ for(var i = 1; i < args.length; i++){
     else if(args[i].substr(0, 11) == 'maxRequests'){
         config.maxtotalrequests = parseInt(args[i].substr(12));
     }
+    else if(args[i].substr(0, 15) == 'customStylePath'){
+        config.customStylePath = parseInt(args[i].substr(16));
+        config.customStyleXml = fs.readFileSync(config.customStylePath);
+    }
 }
 
 var fs = require('fs');
@@ -102,7 +106,9 @@ var styleStrings = ['apsa',
                     'vancouver'
                     ];
 
-
+if(config.hasOwnProperty('customStylePath')){
+    bib1post.styleXml = config.customStyleXml;
+}
 reqBody = JSON.stringify(bib1post);
 //console.log(bib1post);
 //fs.writeFileSync('./prettyRequestBodyJson', sys.inspect(bib1post, false, null), 'utf8');
