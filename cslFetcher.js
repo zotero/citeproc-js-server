@@ -140,13 +140,26 @@ cslFetcher.resolveStyle = function(zcreq, callback){
 };
 
 cslFetcher.fetchStyle = function(zcreq, callback){
+    console.log("cslFetcher.fetchStyle");
     try{
-        //zcite.debug('cslFetcher.fetchStyle', 5);
-        if(zcreq.styleUrlObj.host == 'www.zotero.org'){
+        if(zcreq.postedStyle){
+            zcite.debug("using the posted style", 5);
+            zcreq.cslXml = zcreq.postObj.stylexml;
+            callback(null, zcreq);
+        }
+        else if(zcreq.styleUrlObj.host == 'www.zotero.org'){
+            zcite.debug("using zotero.org style", 5);
             //check if independent style from zotero repo
             if((typeof this.cslShortNames[zcreq.styleUrlObj.shortName] != 'undefined') && (this.cslShortNames[zcreq.styleUrlObj.shortName] === true)){
+                zcite.debug('loading independent style from file', 5);
                 var filename = cslFetcher.cslPath + '/' + zcreq.styleUrlObj.shortName + '.csl';
+                zcite.debug(filename, 5);
                 fs.readFile(filename, 'utf8', function(err, data){
+                    if(err){
+                        zcite.debug('error loading style from file', 5);
+                    }
+                    zcite.debug('loaded style from file', 5);
+                    //zcite.debug(data);
                     zcreq.cslXml = data;
                     callback(err, zcreq);
                 });
@@ -159,6 +172,7 @@ cslFetcher.fetchStyle = function(zcreq, callback){
             }
         }
         else{
+            zcite.debug("non zotero style requested", 5);
             throw "non-Zotero styles are not supported at this time";
             /*
             var cslXml = '';
