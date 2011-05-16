@@ -152,8 +152,16 @@ zcite.createEngine = function(zcreq, callback){
     };
     zcite.debug("cpSys created", 5);
     zcite.debug(zcreq.config.locale, 5);
+    zcite.debug("CSL XML:");
+    zcite.debug(zcreq.cslXml);
     //var citeproc = new zcite.CSL.Engine(cpSys, zcreq.cslXml, zcreq.config.locale);
-    var citeproc = zcite.citeproc.createEngine(cpSys, zcreq.cslXml, zcreq.config.locale);
+    try{
+        var citeproc = zcite.citeproc.createEngine(cpSys, zcreq.cslXml, zcreq.config.locale);
+    }
+    catch(err){
+        zcite.debug("Error creating citeproc engine:" + err.message);
+        throw err;
+    }
     zcite.debug('engine created', 5);
     zcreq.citeproc = citeproc;
     //run the actual request now that citeproc is initialized (need to run this from cacheLoadEngine instead?)
@@ -169,6 +177,10 @@ zcite.createEngine = function(zcreq, callback){
 //try to load a csl engine specified by styleuri:locale from the cache
 zcite.cacheLoadEngine = function(styleUri, locale){
     zcite.debug('zcite.cacheLoadEngine', 5);
+    if((!styleUri) || (!locale)){
+        //can't fully qualify style
+        return false;
+    }
     var cacheEngineString = styleUri + ':' + locale;
     zcite.debug(cacheEngineString, 5);
     if((typeof this.cachedEngines[cacheEngineString] == 'undefined') || 
@@ -177,25 +189,23 @@ zcite.cacheLoadEngine = function(styleUri, locale){
         return false;
     }
     else if(this.cachedEngines[cacheEngineString].store instanceof Array){
+        //have the processor on record
         if(this.cachedEngines[cacheEngineString].store.length == 0){
+            //don't have any of this processor ready for work
             return false;
         }
         else{
+            //processor ready waiting for work
             var citeproc = zcite.cachedEngines[cacheEngineString].store.pop();
+            zcite.cachedEngineCount--;
             citeproc.sys.items = {};
             citeproc.updateItems([]);
             citeproc.restoreProcessorState();
             return citeproc;
         }
     }
-    else{
-        var citeproc = zcite.cachedEngines[cacheEngineString].store;
-        citeproc.sys.items = {};
-        citeproc.updateItems([]);
-        citeproc.restoreProcessorState();
-        delete zcite.cachedEngines[cacheEngineString];
-        return citeproc;
-    }
+    //this shouldn't happen
+    return false;
 };
 
 //save a csl engine specified by styleuri:locale
@@ -216,39 +226,52 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
             zcite.debug('pushing instance of engine', 5)
             this.cachedEngines[cacheEngineString].store.push(citeproc);
             this.cachedEngines[cacheEngineString].used = Date.now();
-            zcite.debug('cachedEngines[cacheEngineString].length:' + this.cachedEngines[cacheEngineString].store.length, 5);
+            zcite.debug('cachedEngines[cacheEngineString].store.length:' + this.cachedEngines[cacheEngineString].store.length, 5);
         }
     }
     
-    //increment saved count and try cleaning the cache every x saves
+    //increment saved count and possibly clean the cache
     zcite.cachedEngineCount++;
-    if(zcite.cachedEngineCount > 60){
-        zcite.cleanCache();
-        zcite.cachedEngineCount = zcite.config.engineCacheSize;
+    if(zcite.cachedEngineCount > zcite.config.engineCacheSize){
+        zcite.cachedEngineCount = zcite.cleanCache();
     }
 };
 
 //clean up cache of engines
 zcite.cleanCache = function(){
     var gcCacheArray = [];
+    var totalCount = 0;
+    //add cached engine stores to array for sorting
     for(var i in this.cachedEngines){
         gcCacheArray.push(i);
+        totalCount += i.store.length;
     }
-    if(gcCacheArray.length > zcite.config.engineCacheSize){
+    //only clean if we have more engines than we're configured to cache
+    if(totalCount > zcite.config.engineCacheSize){
+        //sort by last used
         gcCacheArray.sort(function(a, b){
             return zcite.cachedEngines[b].used - zcite.cachedEngines[a].used;
         });
-        
-        for(var i = zcite.config.engineCacheSize; i < gcCacheArray.length; i++){
-            delete zcite.cachedEngines[gcCacheArray[i]];
+        //make cleaning runs until we get under the desired count
+        while(totalCount > zcite.config.engineCacheSize){
+            for(var engine in gcCacheArray){
+                if(engine.store.length == 1){
+                    delete engine.store.pop();
+                    totalCount--;
+                }
+                else{
+                    //remove half of these engines on this pass
+                    var numToRemove = Math.floor(engine.store.length / 2);
+                    for(var i = 0; i < numToRemove; i++){
+                        delete engine.store.pop();
+                        totalCount--;
+                    }
+                }
+            }
         }
     }
-    /*
-    for(var i = 0; i < gcCacheArray.length; i++){
-        var e = zcite.cachedEngines[gcCacheArray[i]];
-        zcite.debug(gcCacheArray[i] + " : " + e.used, 5);
-    }
-    */
+    
+    return totalCount;
 }
 
 //precache CSL Engines on startup with style:locale 
@@ -427,7 +450,12 @@ zcite.runRequest = function(zcreq){
         zcite.debug("response sent", 5);
         
         citeproc.sys.items = {};
-        zcite.cacheSaveEngine(zcreq.citeproc, zcreq.styleUrlObj.href, zcreq.config.locale);
+        if(zcreq.postedStyle){
+            return;
+        }
+        else{
+            zcite.cacheSaveEngine(zcreq.citeproc, zcreq.styleUrlObj.href, zcreq.config.locale);
+        }
     }
     catch(err){
         zcite.respondException(err, zcreq.response);
@@ -559,6 +587,11 @@ http.createServer(function (request, response) {
                 zcreq.citationClusters = zcreq.postObj.citationClusters;
             }
             
+            var postedStyle = false;
+            if(postObj.hasOwnProperty('stylexml')){
+                postedStyle = true;
+            }
+            zcreq.postedStyle = postedStyle;
             //make style identifier so we can check caches for real
             //check for citeproc engine cached
             //otherwise check for cached style
@@ -567,9 +600,11 @@ http.createServer(function (request, response) {
                 function fetchStyleIdentifier(){
                     //put the passed styleUrl into a standard form (adding www.zotero.org to short names)
                     zcite.debug("request step: fetchStyleIdentifier", 5);
-                    //console.log(zcreq);
-                    zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
-                    zcite.cslFetcher.resolveStyle(zcreq, this);
+                    //short circuit on posted style
+                    if(!zcreq.postedStyle){
+                        zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
+                        zcite.cslFetcher.resolveStyle(zcreq, this);
+                    }
                     //return zcreq;
                 },
                 function tryCachedEngine(err, zcreq){
@@ -578,6 +613,9 @@ http.createServer(function (request, response) {
                         throw err;
                     }
                     zcite.debug("request step: tryCachedEngine", 5);
+                    //short circuit on posted style
+                    if(zcreq.postedStyle) return zcreq;
+                    
                     //check for cached version or create new CSL Engine
                     var citeproc;
                     if(citeproc = zcite.cacheLoadEngine(zcreq.styleUrlObj.href, zcreq.config.locale)){
@@ -600,13 +638,14 @@ http.createServer(function (request, response) {
                         return zcreq;
                     }
                     var cslXml;
+                    
                     /*if(cslXml = zcite.cslFetcher.getCachedStyle(zcreq.styleUrlObj.href)){
                         //successfully fetched cached style - load engine and run request
                         zcreq.cslXml = cslXml;
                         return zcreq;
                     }
                     else{*/
-                        zcite.cslFetcher.fetchStyle(zcreq, this);
+                    zcite.cslFetcher.fetchStyle(zcreq, this);
                     //}
                 },
                 function createEngine(err, zcreq){
@@ -647,6 +686,7 @@ http.createServer(function (request, response) {
             
         }
         catch(err){
+            zcite.debug(err.message);
             if(typeof err == "string"){
                 response.writeHead(500, {'Content-Type': 'text/plain'});
                 response.end(err);
