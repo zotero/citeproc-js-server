@@ -153,6 +153,7 @@ zcite.createEngine = function(zcreq, callback){
     zcite.debug("cpSys created", 5);
     zcite.debug(zcreq.config.locale, 5);
     //var citeproc = new zcite.CSL.Engine(cpSys, zcreq.cslXml, zcreq.config.locale);
+    //zcite.debug(zcreq.cslXml);
     try{
         var citeproc = zcite.citeproc.createEngine(cpSys, zcreq.cslXml, zcreq.config.locale);
     }
@@ -603,7 +604,9 @@ http.createServer(function (request, response) {
                         zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
                         zcite.cslFetcher.resolveStyle(zcreq, this);
                     }
-                    this(null, zcreq);
+                    else{
+                        this(null, zcreq);
+                    }
                     //return zcreq;
                 },
                 function tryCachedEngine(err, zcreq){
