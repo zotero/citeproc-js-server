@@ -58,7 +58,9 @@ var Encoder = {
 
     isEmpty : function(val){
         if(val){
-            return ((val===null) || val.length==0 || /^\s+$/.test(val));
+            //replaced by fcheslack so whitespace separators are not stripped from CSL
+            //return ((val===null) || val.length==0 || /^\s+$/.test(val));
+            return ((val===null) || val.length==0);
         }else{
             return true;
         }
@@ -378,7 +380,6 @@ CSL_NODEJS_JSDOM.prototype.nodename = function (myxml) {
 };
 CSL_NODEJS_JSDOM.prototype.attributes = function (myxml) {
     zotero.Debug('CSL_NODEJS.attributes');
-    var entityRegExp = /&([#a-z0-9]+);/gi;
     var ret, attrs, attr, key, xml, pos, len;
     ret = new Object();
     if (myxml && this.hasAttributes(myxml)) {
