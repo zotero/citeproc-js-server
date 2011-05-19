@@ -91,14 +91,22 @@ var passedStyles = [];
 var loadcites = require('./loadcitesnode.js');
 var citeData = loadcites.data;
 var bib1 = loadcites.bib1;
+var bib2 = loadcites.bib2;
 var biball = loadcites.biball;
 var bib1post = {};
+var bib2post = {};
 bib1post.items = [];
+bib2post.items = [];
 for(var i=0; i < bib1.length; i++){
     bib1post.items.push(citeData[ bib1[i] ]);
     //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
 }
+for(var i=0; i < bib2.length; i++){
+    bib2post.items.push(citeData[ bib2[i] ]);
+    //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
+}
 bib1post.citationClusters = loadcites.citations1;
+bib2post.citationClusters = loadcites.citations1;
 var styleStrings = ['apsa', 
                     'apa', 
                     'asa', 
@@ -117,9 +125,9 @@ var styleStrings = ['apsa',
                     ];
 
 if(config.hasOwnProperty('customStylePath')){
-    bib1post.styleXml = config.customStyleXml;
+    bib2post.styleXml = config.customStyleXml;
 }
-reqBody = JSON.stringify(bib1post);
+reqBody = JSON.stringify(bib2post);
 //console.log(bib1post);
 //fs.writeFileSync('./prettyRequestBodyJson', sys.inspect(bib1post, false, null), 'utf8');
 //console.log("\n\n");

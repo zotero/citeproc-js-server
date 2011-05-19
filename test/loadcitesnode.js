@@ -88,7 +88,8 @@ var data = {
 			]
 		},
 		"type": "article-journal",
-        "note": "Note the flip-flop behavior of the quotations marks around \"informal\" in the title of this citation.  This works for quotation marks in any style locale.  Oh, and, uh, these notes illustrate the formatting of annotated bibliographies (!)."
+        "note": "Note the flip-flop behavior of the quotations marks around \"informal\" in the title of this citation.  This works for quotation marks in any style locale.  Oh, and, uh, these notes illustrate the formatting of annotated bibliographies (!).",
+        "url": "http://www.zotero.org/some/journal/article?arg1=purple&arg2=green"
 	},
 	"ITEM-3": {
 		"id": "ITEM-3",
@@ -506,11 +507,31 @@ var data = {
            ]
 		},
         "type": "book"
+    },
+    "ITEM-22": {
+        "id": "ITEM-22", 
+        "title": "Zeroing in on efficient thermoelectric power",
+        "author":[
+            {
+                "family": "Timmer",
+                "given": "John"
+            }
+        ],
+        "URL": "http://arstechnica.com/science/news/2011/05/zeroing-in-on-efficient-thermoelectric-power.ars",
+        "type": "webpage"
+    },
+    "ITEM-23": {
+        "id": "ITEM-23",
+        "URL": "http://www.ja-sig.org/jasigconf/popSpeaker.jsp?id=39e50005&conf_id=jasig12&name=Lennard+Fuller", 
+        "title": "JA-SIG Conference Presentation", 
+        "type": "webpage"
     }
 };
 
 var bib1 = ["ITEM-1", 'ITEM-2', 'ITEM-3', 'ITEM-4', 'ITEM-5', 'ITEM-6', 'ITEM-21'];
-var biball = ["ITEM-1", 'ITEM-2', 'ITEM-3', 'ITEM-4', 'ITEM-5', 'ITEM-6', 'ITEM-7', 'ITEM-8', 'ITEM-9', 'ITEM-10',"ITEM-11", 'ITEM-12', 'ITEM-13', 'ITEM-14', 'ITEM-15', 'ITEM-16', 'ITEM-17', 'ITEM-18', 'ITEM-19', 'ITEM-20', 'ITEM-21'];
+var bib2 = ["ITEM-1", 'ITEM-2', 'ITEM-3', 'ITEM-4', 'ITEM-5', 'ITEM-6', 'ITEM-21', 'ITEM-22', 'ITEM-23'];
+
+var biball = ["ITEM-1", 'ITEM-2', 'ITEM-3', 'ITEM-4', 'ITEM-5', 'ITEM-6', 'ITEM-7', 'ITEM-8', 'ITEM-9', 'ITEM-10',"ITEM-11", 'ITEM-12', 'ITEM-13', 'ITEM-14', 'ITEM-15', 'ITEM-16', 'ITEM-17', 'ITEM-18', 'ITEM-19', 'ITEM-20', 'ITEM-21', 'ITEM-22', 'ITEM-23'];
 
 var citations1 = [
     {
@@ -602,5 +623,6 @@ var citations1 = [
 //NODEJS EXPORT
 exports.data = data;
 exports.bib1 = bib1;
+exports.bib2 = bib2;
 exports.citations1 = citations1;
 
