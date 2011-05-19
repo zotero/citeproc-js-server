@@ -45,14 +45,18 @@
  * recipient may use your version of this file under either the CPAL
  * or the [AGPLv3] License.”
  */
+var zotero = {};
+zotero.Debug = function(s, level){
+    return;
+    console.log(s);
+}
 
-var zotero = require("./zoteronode").zotero;
 var DOMParser;
 var CSL_NODEJS_JSDOM = function () {
         DOMParser = function() {};
         DOMParser.prototype.parseFromString = function(str, contentType) {
-            var jsdom = require("jsdom");
-            return jsdom.jsdom(str);
+            var jsdom = require("jsdom").jsdom;
+            return jsdom(str);
             /*
             if ("undefined" != typeof ActiveXObject) {
                 var xmldata = new ActiveXObject('MSXML.DomDocument');
@@ -120,9 +124,12 @@ var CSL_NODEJS_JSDOM = function () {
     this.parser = new DOMParser();
     var inst_txt = "<docco><institution institution-parts=\"long\" delimiter=\", \" substitute-use-first=\"1\" use-last=\"1\"/></docco>";
     var inst_doc = this.parser.parseFromString(inst_txt, "text/xml");
+    //zotero.Debug(inst_doc);
     var inst_node = inst_doc.getElementsByTagName("institution");
+    //zotero.Debug(inst_node);
     this.institution = inst_node.item(0);
-    zotero.Debug("institution node: " + this.institution.xml);
+    //zotero.Debug(this.institution);
+    //zotero.Debug("institution node: " + this.institution.xml);
     this.ns = "http://purl.org/net/xbiblio/csl";
 };
 CSL_NODEJS_JSDOM.prototype.clean = function (xml) {
@@ -166,6 +173,8 @@ CSL_NODEJS_JSDOM.prototype.attributes = function (myxml) {
         attrs = myxml.attributes;
         for (pos = 0, len=attrs.length; pos < len; pos += 1) {
             attr = attrs[pos];
+            var v = attr.value;
+            v = v.replace('&lt;', '<').replace('&gt;', '>');
             ret["@" + attr.name] = attr.value;
         }
     }
@@ -291,6 +300,9 @@ CSL_NODEJS_JSDOM.prototype.getNodesByName = function (myxml,name,nameattrval) {
     zotero.Debug('CSL_NODEJS.getNodesByName : ' + name + " = " + nameattrval, 3);
     var ret, nodes, node, pos, len;
     ret = [];
+    if(typeof myxml.getElementsByTagName == 'undefined'){
+        return ret;
+    }
     nodes = myxml.getElementsByTagName(name);
     for (pos = 0, len = nodes.length; pos < len; pos += 1) {
         node = nodes.item(pos);
@@ -315,9 +327,12 @@ CSL_NODEJS_JSDOM.prototype.makeXml = function (myxml) {
         myxml = "<docco><bogus/></docco>";
     }
     myxml = myxml.replace(/\s*<\?[^>]*\?>\s*\n*/g, "");
-    myxml = myxml.replace("<style ", "<cslstyle ");
+    //zotero.Debug(myxml);
+    myxml = myxml.replace("<style", "<cslstyle").replace("</style", "</cslstyle");
     var nodetree = this.parser.parseFromString(myxml, "application/xml");
     //var stylenode = nodetree.getElementsByTagName("cslstyle");
+    //zotero.Debug(stylenode);
+    //process.exit();
     return nodetree.firstChild;
 };
 CSL_NODEJS_JSDOM.prototype.insertChildNodeAfter = function (parent,node,pos,datexml) {
@@ -328,6 +343,7 @@ CSL_NODEJS_JSDOM.prototype.insertChildNodeAfter = function (parent,node,pos,date
     return parent;
  };
 CSL_NODEJS_JSDOM.prototype.insertPublisherAndPlace = function(myxml) {
+    zotero.Debug('CSL_NODEJS.insertPublisherAndPlace', 5);
     var group = myxml.getElementsByTagName("group");
     for (var i = 0, ilen = group.length; i < ilen; i += 1) {
         var node = group.item(i);
@@ -351,9 +367,13 @@ CSL_NODEJS_JSDOM.prototype.insertPublisherAndPlace = function(myxml) {
     }
 };
 CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
-    zotero.Debug('CSL_NODEJS.addInstitutionNodes', 3);
+    zotero.Debug('CSL_NODEJS.addInstitutionNodes');
+    //zotero.Debug(myxml);
     var names, thenames, institution, theinstitution, name, thename, xml, pos, len;
     names = myxml.getElementsByTagName("names");
+    //process.exit();
+    //zotero.Debug("names");
+    //zotero.Debug(names);
     for (pos = 0, len = names.length; pos < len; pos += 1) {
         thenames = names[pos];
         name = thenames.getElementsByTagName("name");
@@ -367,6 +387,7 @@ CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
             thenames.insertBefore(theinstitution, thename.nextSibling);
         }
     }
+    zotero.Debug("done with addInstitutionNodes");
 };
 
 exports.CSL_NODEJS_JSDOM = CSL_NODEJS_JSDOM;
