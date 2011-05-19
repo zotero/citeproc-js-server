@@ -86,6 +86,7 @@ zcite.debug = function(m, level){
 zcite.respondException = function(err, response, statusCode){
     zcite.debug("respondException", 5);
     zcite.debug(err, 3);
+    zcite.debug(err.message);
     if(typeof statusCode == 'undefined'){
         var statusCode = 500;
     }
@@ -93,13 +94,13 @@ zcite.respondException = function(err, response, statusCode){
         if(typeof err == "string"){
             response.writeHead(statusCode, {'Content-Type': 'text/plain'});
             response.end("An error occurred");
-            zcite.debug("caught exception : " + err, 1);
+            //zcite.debug("caught exception : " + err, 1);
             return;
         }
         else{
             response.writeHead(statusCode, {'Content-Type': 'text/plain'});
             response.end("An error occurred");
-            zcite.debug(err, 1);
+            //zcite.debug(err, 1);
             return;
         }
     }
@@ -159,6 +160,8 @@ zcite.createEngine = function(zcreq, callback){
     }
     catch(err){
         zcite.debug("Error creating citeproc engine:" + err.message);
+        zcite.respondException(err, zcreq.response);
+        //return false;
         throw err;
     }
     zcite.debug('engine created', 5);
@@ -403,6 +406,7 @@ zcite.runRequest = function(zcreq){
         zcite.debug("outputFormat set", 5);
         //add items posted with request
         citeproc.updateItems(zcreq.reqItemIDs);
+        zcite.debug('updated Items', 5);
         if(citeproc.opt.sort_citations){
             zcite.debug("currently using a sorting style", 1);
         }

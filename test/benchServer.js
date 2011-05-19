@@ -25,7 +25,7 @@
 
 //process command line args for config
 var config = {
-    'maxconnections':10,
+    'maxconnections':1,
     'duration':3,
     'maxtotalrequests':1,
     'showoutput':false,
@@ -34,11 +34,13 @@ var config = {
     'bibliography':'1',
     'citations':'0',
     'outputformat':'html',
-    'memoryUsage':false
+    'memoryUsage':false,
+    'cslPath': '/home/fcheslack/pub_web/citeproc-node/csl'
 };
 var args = process.argv;
 var sys = require('sys');
 var fs = require('fs');
+
 for(var i = 1; i < args.length; i++){
     if(args[i].substr(0, 14) == 'maxconnections'){
         config.parallel = parseInt(args[i].substr(15));
@@ -76,9 +78,16 @@ for(var i = 1; i < args.length; i++){
         console.log(config.customStylePath);
         config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
     }
+    else if (args[i].substr(0, 13) == 'testAllStyles'){
+        config.testAllStyles = true;
+    }
 }
 
-var fs = require('fs');
+var stylesList = fs.readdirSync(config.cslPath);
+stylesList = stylesList.sort();
+var stylesListCounter = 0;
+var errorStyles = [];
+var passedStyles = [];
 var loadcites = require('./loadcitesnode.js');
 var citeData = loadcites.data;
 var bib1 = loadcites.bib1;
@@ -137,28 +146,45 @@ var benchStart = Date.now();
 var targetHost = '127.0.0.1';
 //var targetHost = '209.51.184.202';
 
+var outputStats = function(){
+    console.log("Benchmark Complete");
+    var totalRequests = connectionResults.length;
+    var totalTime = 0;
+    var maxTime = 0;
+    var minTime = 5000;
+    for(var i = 0; i < connectionResults.length; i++){
+        var reqTime = connectionResults[i].requestTime;
+        totalTime += reqTime;
+        maxTime = Math.max(maxTime, reqTime);
+        minTime = Math.min(minTime, reqTime);
+    }
+    console.log('totalRequests: ' + totalRequests);
+    console.log('totalTime: ' + (totalTime / 1000));
+    console.log('maxTime: ' + maxTime);
+    console.log('minTime: ' + minTime);
+    console.log('total Benchmark Time: ' + (Date.now() - benchStart));
+    console.log('==========================');
+    console.log('Passed Styles:');
+    for(var i=0; i<passedStyles.length; i++){
+        console.log(passedStyles[i]);
+    }
+    console.log('==========================');
+    console.log('Failed Styles:');
+    for(var i=0; i<errorStyles.length; i++){
+        console.log(errorStyles[i]);
+    }
+    setTimeout(function(){
+        process.exit();
+    }, 2000);
+};
+
 //set global timeout for finishing benchmarks
 setTimeout(function(){
     continueRequests = false; //stop making new requests
     //set timeout to allow time for in progress requests to return
+    outputStats();
     setTimeout(function(){
-        console.log("Benchmark Complete");
-        var totalRequests = connectionResults.length;
-        var totalTime = 0;
-        var maxTime = 0;
-        var minTime = 5000;
-        for(var i = 0; i < connectionResults.length; i++){
-            var reqTime = connectionResults[i].requestTime;
-            totalTime += reqTime;
-            maxTime = Math.max(maxTime, reqTime);
-            minTime = Math.min(minTime, reqTime);
-        }
-        console.log('totalRequests: ' + totalRequests);
-        console.log('totalTime: ' + (totalTime / 1000));
-        console.log('maxTime: ' + maxTime);
-        console.log('minTime: ' + minTime);
-        console.log('total Benchmark Time: ' + (Date.now() - benchStart));
-        process.exit();
+        
     }, 100);
 }, timeout);
 
@@ -204,6 +230,22 @@ var singleRequest = function(){
     if(config.style == 'rand'){
         useStyleString = randStyle();
     }
+    else if(config.testAllStyles){
+        while(true){
+            if(stylesListCounter >= stylesList.length){
+                outputStats();
+                return;
+            }
+            useStyleString = stylesList[stylesListCounter];
+            stylesListCounter++;
+            if(useStyleString && useStyleString.slice(-4) == '.csl'){
+                useStyleString = useStyleString.replace('.csl', '');
+                console.log("counter: " + stylesListCounter + ' - ' + useStyleString);
+                break;
+            }
+        }
+    }
+    
     var qstring = 'style=' + useStyleString + '&responseformat=' + config.responseformat;
     if(config.bibliography == '0'){qstring += '&bibliography=0';}
     if(config.citations == '1'){qstring += '&citations=1';}
@@ -212,6 +254,7 @@ var singleRequest = function(){
     var request = localCiteConn.request('POST', '/?' + qstring,
         {'host': targetHost});
     request.startDate = Date.now();
+    request.styleUsed = useStyleString;
     request.on('response', function (response) {
         console.log('STATUS: ' + response.statusCode);
         response.setEncoding('utf8');
@@ -220,8 +263,16 @@ var singleRequest = function(){
             this.body += chunk;
         });
         response.on('end', function(){
+            curConnections--;
             this.endDate = Date.now();
             var timeElapsed = this.endDate - request.startDate;
+            var styleUsed = request.styleUsed;
+            if(this.statusCode != 200){
+                errorStyles.push(styleUsed);
+            }
+            else{
+                passedStyles.push(styleUsed);
+            }
             console.log("timeElapsed: " + timeElapsed);
             connectionResults.push({
                 'status':this.statusCode,
@@ -231,10 +282,10 @@ var singleRequest = function(){
             if(config.showOutput){
                 console.log(this.body);
             }
-            curConnections--;
         });
     });
     request.write(reqBody, 'utf8');
     request.end();
 }
+
 makeRequests();
