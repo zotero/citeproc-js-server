@@ -166,10 +166,9 @@ zcite.createEngine = function(zcreq, callback){
     }
     catch(err){
         zcite.debug("Error creating citeproc engine:" + err.message);
-        console.trace();
         zcite.respondException(err, zcreq.response);
-        //return false;
-        throw err;
+        return false;
+        //throw err;
     }
     zcite.debug('engine created', 5);
     zcreq.citeproc = citeproc;
@@ -435,8 +434,13 @@ zcite.runRequest = function(zcreq){
         if(config.citations == "1"){
             zcite.debug('generating citations', 5);
             var citations = [];
-            for(var i = 0; i < zcreq.citationClusters.length; i++){
-                citations.push(citeproc.appendCitationCluster(zcreq.citationClusters[i], true)[0]);
+            if(zcreq.citationClusters){
+                for(var i = 0; i < zcreq.citationClusters.length; i++){
+                    citations.push(citeproc.appendCitationCluster(zcreq.citationClusters[i], true)[0]);
+                }
+            }
+            else{
+                
             }
             zcite.debug(citations, 5);
             responseJson.citations = citations;
@@ -474,7 +478,6 @@ zcite.runRequest = function(zcreq){
         }
     }
     catch(err){
-        console.trace();
         zcite.respondException(err, zcreq.response);
     }
 };
@@ -569,6 +572,13 @@ http.createServer(function (request, response) {
             else{
                 reqItemIDs = [];
             }
+            //add citationItems if not defined in request
+            var addCitationClusters = true;
+            var autoCitationClusters = [];
+            var noteIndexCount = 0;
+            if(typeof zcreq.citationClusters != 'undefined'){
+                var addCitationClusters = false;
+            }
             
             //push itemIDs onto array and id referenced object for updateItems and retrieveItem function
             //items can be passed in as an object with keys becoming IDs, but ordering will not be guarenteed
@@ -593,6 +603,24 @@ http.createServer(function (request, response) {
                 }
             }
             
+            //actually add the citationItems
+            if(addCitationClusters){
+                for(var i = 0; i < reqItemIDs.length; i++){
+                    var itemid = reqItemIDs[i];
+                    autoCitationClusters.push(
+                    {
+                        "citationItems": [
+                            {
+                                id: itemid,
+                            }
+                        ],
+                        "properties": {
+                            "noteIndex": i
+                        }
+                    });
+                }
+            }
+            
             //add citeproc required functions to zcreq object so it can be passed into CSL.Engine constructor
             zcreq.retrieveLocale = global.zcite.retrieveLocale;
             zcreq.retrieveItem = function(itemID){return this.items[itemID];};
@@ -601,7 +629,12 @@ http.createServer(function (request, response) {
             zcreq.reqItemsObj = reqItemsObj;
             
             if(config.citations == '1'){
-                zcreq.citationClusters = zcreq.postObj.citationClusters;
+                if(zcreq.postObj.citationClusters){
+                    zcreq.citationClusters = zcreq.postObj.citationClusters;
+                }
+                else{
+                    zcreq.citationClusters = autoCitationClusters;
+                }
             }
             
             var postedStyle = false;
