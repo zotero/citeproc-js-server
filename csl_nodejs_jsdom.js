@@ -335,14 +335,14 @@ var CSL_NODEJS_JSDOM = function () {
         }
     };
     this.parser = new DOMParser();
-    var inst_txt = "<docco><institution institution-parts=\"long\" delimiter=\", \" substitute-use-first=\"1\" use-last=\"1\"/></docco>";
-    var inst_doc = this.parser.parseFromString(inst_txt, "text/xml");
-    //zotero.Debug(inst_doc);
+    // This seems horribly tormented, but there might be a reason for it.
+    // Perhaps this was the only way I found to get namespacing to work ... ?
+    var str = "<docco><institution institution-parts=\"long\" delimiter=\", \" substitute-use-first=\"1\" use-last=\"1\"><institution-part name=\"long\"></institution></docco>";
+    var inst_doc = this.parser.parseFromString(str, "text/xml");
     var inst_node = inst_doc.getElementsByTagName("institution");
-    //zotero.Debug(inst_node);
     this.institution = inst_node.item(0);
-    //zotero.Debug(this.institution);
-    //zotero.Debug("institution node: " + this.institution.xml);
+    var inst_part_node = inst_doc.getElementsByTagName("institution-part");
+    this.institutionpart = inst_part_node.item(0);
     this.ns = "http://purl.org/net/xbiblio/csl";
 };
 CSL_NODEJS_JSDOM.prototype.clean = function (xml) {
@@ -541,13 +541,25 @@ CSL_NODEJS_JSDOM.prototype.makeXml = function (myxml) {
         myxml = "<docco><bogus/></docco>";
     }
     myxml = myxml.replace(/\s*<\?[^>]*\?>\s*\n*/g, "");
-    //zotero.Debug(myxml);
     myxml = myxml.replace("<style", "<cslstyle").replace("</style", "</cslstyle");
-    var nodetree = this.parser.parseFromString(myxml, "application/xml");
-    //var stylenode = nodetree.getElementsByTagName("cslstyle");
-    //zotero.Debug(stylenode);
+    myxml = myxml.trim();
+    //zotero.Debug(myxml);
+    //console.error(myxml);
     //process.exit();
-    return nodetree.firstChild;
+    var doc = this.parser.parseFromString(myxml, "application/xml");
+    //zotero.Debug("doc : " + doc.nodeName + " : " + doc.nodeValue);
+    var firstChild = doc.firstChild;
+    //zotero.Debug("firstChild : " + firstChild.nodeName + " : " + firstChild.nodeValue);
+    var cslstylenodes = doc.getElementsByTagName('CSLSTYLE');
+    var snode = cslstylenodes.item(0);
+    //zotero.Debug("snode : " + snode.nodeName + " : " + snode.nodeValue);
+    
+    if(snode){
+        return snode;
+    }
+    else{
+        return firstChild;
+    }
 };
 CSL_NODEJS_JSDOM.prototype.insertChildNodeAfter = function (parent,node,pos,datexml) {
     zotero.Debug('CSL_NODEJS.insertChildNodeAfter', 3);
@@ -582,14 +594,12 @@ CSL_NODEJS_JSDOM.prototype.insertPublisherAndPlace = function(myxml) {
 };
 CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
     zotero.Debug('CSL_NODEJS.addInstitutionNodes');
-    //zotero.Debug(myxml);
+    //zotero.Debug("myxml : " + myxml.nodeName + " : " + myxml.nodeValue);
+    /*
     var names, thenames, institution, theinstitution, name, thename, xml, pos, len;
     names = myxml.getElementsByTagName("names");
-    //process.exit();
-    //zotero.Debug("names");
-    //zotero.Debug(names);
     for (pos = 0, len = names.length; pos < len; pos += 1) {
-        thenames = names[pos];
+        thenames = names.item(pos);
         name = thenames.getElementsByTagName("name");
         if (name.length == 0) {
             continue;
@@ -597,8 +607,52 @@ CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
         institution = thenames.getElementsByTagName("institution");
         if (institution.length == 0) {
             theinstitution = this.importNode(myxml.ownerDocument, this.institution);
-            thename = name[0];
+            theinstitutionpart = theinstitution.getElementsByTagName("institution-part").item(0);
+            thename = name.item(0);
             thenames.insertBefore(theinstitution, thename.nextSibling);
+        }
+    }
+    */
+    var names, thenames, institution, theinstitution, name, thename, xml, pos, len;
+    var CSL_INSTITUTION_KEYS = [
+        "font-style",
+        "font-variant",
+        "font-weight",
+        "text-decoration",
+        "text-case"
+    ];
+    names = myxml.getElementsByTagName("names");
+    for (pos = 0, len = names.length; pos < len; pos += 1) {
+        thenames = names.item(pos);
+        name = thenames.getElementsByTagName("name");
+        if (name.length == 0) {
+            continue;
+        }
+        institution = thenames.getElementsByTagName("institution");
+        if (institution.length == 0) {
+            theinstitution = this.importNode(myxml.ownerDocument, this.institution);
+            theinstitutionpart = theinstitution.getElementsByTagName("institution-part").item(0);
+            thename = name.item(0);
+            thenames.insertBefore(theinstitution, thename.nextSibling);
+            for (var j = 0, jlen = CSL_INSTITUTION_KEYS.length; j < jlen; j += 1) {
+                var attrname = CSL_INSTITUTION_KEYS[j];
+                var attrval = thename.getAttribute(attrname);
+                if (attrval) {
+                    theinstitutionpart.setAttribute(attrname, attrval);
+                }
+            }
+            var nameparts = thename.getElementsByTagName("name-part");
+            for (var j = 0, jlen = nameparts.length; j < jlen; j += 1) {
+                if ('family' === nameparts[j].getAttribute('name')) {
+                    for (var k = 0, klen = CSL_INSTITUTION_KEYS.length; k < klen; k += 1) {
+                        var attrname = CSL_INSTITUTION_KEYS[k];
+                        var attrval = nameparts[j].getAttribute(attrname);
+                        if (attrval) {
+                            theinstitutionpart.setAttribute(attrname, attrval);
+                        }
+                    }
+                }
+            }
         }
     }
     zotero.Debug("done with addInstitutionNodes");
