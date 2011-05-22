@@ -87,6 +87,12 @@ zcite.respondException = function(err, response, statusCode){
     zcite.debug("respondException", 5);
     zcite.debug(err, 3);
     zcite.debug(err.message);
+    if(err.hasOwnProperty('stack')){
+        zcite.debug(err.stack);
+    }
+    else{
+        zcite.debug(console.trace());
+    }
     if(typeof statusCode == 'undefined'){
         var statusCode = 500;
     }
@@ -160,6 +166,7 @@ zcite.createEngine = function(zcreq, callback){
     }
     catch(err){
         zcite.debug("Error creating citeproc engine:" + err.message);
+        console.trace();
         zcite.respondException(err, zcreq.response);
         //return false;
         throw err;
@@ -185,14 +192,14 @@ zcite.cacheLoadEngine = function(styleUri, locale){
     }
     var cacheEngineString = styleUri + ':' + locale;
     zcite.debug(cacheEngineString, 5);
-    if((typeof this.cachedEngines[cacheEngineString] == 'undefined') || 
-       (typeof this.cachedEngines[cacheEngineString].store == 'undefined')){
+    if((typeof zcite.cachedEngines[cacheEngineString] == 'undefined') || 
+       (typeof zcite.cachedEngines[cacheEngineString].store == 'undefined')){
         zcite.debug("no cached engine found", 5);
         return false;
     }
-    else if(this.cachedEngines[cacheEngineString].store instanceof Array){
+    else if(zcite.cachedEngines[cacheEngineString].store instanceof Array){
         //have the processor on record
-        if(this.cachedEngines[cacheEngineString].store.length == 0){
+        if(zcite.cachedEngines[cacheEngineString].store.length == 0){
             //don't have any of this processor ready for work
             return false;
         }
@@ -219,16 +226,16 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
     citeproc.updateItems([]);
     citeproc.restoreProcessorState();
     
-    if(typeof this.cachedEngines[cacheEngineString] == 'undefined'){
+    if(typeof zcite.cachedEngines[cacheEngineString] == 'undefined'){
         zcite.debug("saving engine", 5);
-        this.cachedEngines[cacheEngineString] = {store: [citeproc], used: Date.now()};
+        zcite.cachedEngines[cacheEngineString] = {store: [citeproc], used: Date.now()};
     }
     else{
         if(this.cachedEngines[cacheEngineString].store instanceof Array){
             zcite.debug('pushing instance of engine', 5)
-            this.cachedEngines[cacheEngineString].store.push(citeproc);
-            this.cachedEngines[cacheEngineString].used = Date.now();
-            zcite.debug('cachedEngines[cacheEngineString].store.length:' + this.cachedEngines[cacheEngineString].store.length, 5);
+            zcite.cachedEngines[cacheEngineString].store.push(citeproc);
+            zcite.cachedEngines[cacheEngineString].used = Date.now();
+            zcite.debug('cachedEngines[cacheEngineString].store.length:' + zcite.cachedEngines[cacheEngineString].store.length, 5);
         }
     }
     
@@ -243,11 +250,14 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
 zcite.cleanCache = function(){
     var gcCacheArray = [];
     var totalCount = 0;
+    var cachedEngines = zcite.cachedEngines;
     //add cached engine stores to array for sorting
-    for(var i in this.cachedEngines){
+    for(var i in cachedEngines){
         gcCacheArray.push(i);
-        totalCount += i.store.length;
+        zcite.debug(i);
+        totalCount += cachedEngines[i].store.length;
     }
+    zcite.debug("TOTAL COUNT: " + totalCount);
     //only clean if we have more engines than we're configured to cache
     if(totalCount > zcite.config.engineCacheSize){
         //sort by last used
@@ -255,24 +265,27 @@ zcite.cleanCache = function(){
             return zcite.cachedEngines[b].used - zcite.cachedEngines[a].used;
         });
         //make cleaning runs until we get under the desired count
-        while(totalCount > zcite.config.engineCacheSize){
-            for(var engine in gcCacheArray){
-                if(engine.store.length == 1){
+        for(var i = 0; i < gcCacheArray.length; i++){
+            var engineStr = gcCacheArray[i];
+            var engine = cachedEngines[engineStr];
+            if(engine.store.length == 0){
+                continue;
+            }
+            if(engine.store.length == 1){
+                delete engine.store.pop();
+                totalCount--;
+            }
+            else{
+                //remove half of these engines on this pass
+                var numToRemove = Math.floor(engine.store.length / 2);
+                for(var i = 0; i < numToRemove; i++){
                     delete engine.store.pop();
                     totalCount--;
-                }
-                else{
-                    //remove half of these engines on this pass
-                    var numToRemove = Math.floor(engine.store.length / 2);
-                    for(var i = 0; i < numToRemove; i++){
-                        delete engine.store.pop();
-                        totalCount--;
-                    }
                 }
             }
         }
     }
-    
+    zcite.debug("DONE CLEANING CACHE");
     return totalCount;
 }
 
@@ -461,6 +474,7 @@ zcite.runRequest = function(zcreq){
         }
     }
     catch(err){
+        console.trace();
         zcite.respondException(err, zcreq.response);
     }
 };
