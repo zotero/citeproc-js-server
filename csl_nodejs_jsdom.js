@@ -354,6 +354,19 @@ CSL_NODEJS_JSDOM.prototype.clean = function (xml) {
     xml = xml.replace(/^\n*/, "");
     return xml;
 };
+CSL_NODEJS_JSDOM.prototype.getStyleId = function (myxml) {
+    var text = "";
+    var node = myxml.getElementsByTagName("id");
+    if (node && node.length) {
+        node = node.item(0);
+    }
+    if (node) {
+        // W3C conformant browsers
+        text = node.textContent;
+    }
+    return text;
+};
+
 CSL_NODEJS_JSDOM.prototype.children = function (myxml) {
     zotero.Debug("children called on: " + myxml, 3);
     var children, pos, len, ret;
