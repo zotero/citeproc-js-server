@@ -541,7 +541,7 @@ CSL_NODEJS_JSDOM.prototype.makeXml = function (myxml) {
         myxml = "<docco><bogus/></docco>";
     }
     myxml = myxml.replace(/\s*<\?[^>]*\?>\s*\n*/g, "");
-    myxml = myxml.replace("<style", "<cslstyle").replace("</style", "</cslstyle");
+    myxml = myxml.replace("<style ", "<cslstyle ").replace("</style", "</cslstyle");
     myxml = myxml.trim();
     //zotero.Debug(myxml);
     //console.error(myxml);
