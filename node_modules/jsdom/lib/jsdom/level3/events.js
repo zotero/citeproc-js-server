@@ -1,5 +1,8 @@
 var events = require("../level2/events").dom.level2.events;
 
+// modify cloned instance for more info check: https://github.com/tmpvar/jsdom/issues/325
+events = Object.create(events);
+
 /*
 
 // File: events.idl
