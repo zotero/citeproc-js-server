@@ -1,4 +1,4 @@
-var sys = require("sys");
+//var util = require("util");
 var fs = require('fs');
 var CSL = require("./citeprocmodule").CSL;
 //var zotero = require("./zoteronode").zotero;
