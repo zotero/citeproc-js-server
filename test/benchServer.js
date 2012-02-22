@@ -38,7 +38,7 @@ var config = {
     'cslPath': '/home/fcheslack/pub_web/citeproc-node/csl'
 };
 var args = process.argv;
-var sys = require('sys');
+//var util = require('util');
 var fs = require('fs');
 
 for(var i = 1; i < args.length; i++){
@@ -105,8 +105,8 @@ for(var i=0; i < bib2.length; i++){
     bib2post.items.push(citeData[ bib2[i] ]);
     //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
 }
-bib1post.citationClusters = loadcites.citations1;
-bib2post.citationClusters = loadcites.citations1;
+//bib1post.citationClusters = loadcites.citations1;
+//bib2post.citationClusters = loadcites.citations1;
 var styleStrings = ['apsa', 
                     'apa', 
                     'asa', 
@@ -128,6 +128,8 @@ if(config.hasOwnProperty('customStylePath')){
     bib2post.styleXml = config.customStyleXml;
 }
 reqBody = JSON.stringify(bib2post);
+//console.log('postObj:');
+//console.log(bib2post);
 //console.log(bib1post);
 //fs.writeFileSync('./prettyRequestBodyJson', sys.inspect(bib1post, false, null), 'utf8');
 //console.log("\n\n");
