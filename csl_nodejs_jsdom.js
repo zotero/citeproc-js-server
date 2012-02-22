@@ -554,16 +554,18 @@ CSL_NODEJS_JSDOM.prototype.makeXml = function (myxml) {
         myxml = "<docco><bogus/></docco>";
     }
     myxml = myxml.replace(/\s*<\?[^>]*\?>\s*\n*/g, "");
-    myxml = myxml.replace("<style ", "<cslstyle ").replace("</style", "</cslstyle");
+    myxml = myxml.replace(/<style\s/, "<cslstyle ").replace("</style", "</cslstyle");
     myxml = myxml.trim();
-    //zotero.Debug(myxml);
+    //console.log(myxml);
+    //process.exit();
     //console.error(myxml);
     //process.exit();
     var doc = this.parser.parseFromString(myxml, "application/xml");
-    //zotero.Debug("doc : " + doc.nodeName + " : " + doc.nodeValue);
+    //console.log("doc : " + doc.nodeName + " : " + doc.nodeValue);
+    //console.log(doc);
     var firstChild = doc.firstChild;
-    //zotero.Debug("firstChild : " + firstChild.nodeName + " : " + firstChild.nodeValue);
-    var cslstylenodes = doc.getElementsByTagName('CSLSTYLE');
+    //console.log("firstChild : " + firstChild.nodeName + " : " + firstChild.nodeValue);
+    var cslstylenodes = doc.getElementsByTagName('cslstyle');
     var snode = cslstylenodes.item(0);
     //zotero.Debug("snode : " + snode.nodeName + " : " + snode.nodeValue);
     
@@ -605,6 +607,21 @@ CSL_NODEJS_JSDOM.prototype.insertPublisherAndPlace = function(myxml) {
         }
     }
 };
+CSL_NODEJS_JSDOM.prototype.addMissingNameNodes = function(myxml) {
+    var nameslist = myxml.getElementsByTagName("names");
+    for (var i = 0, ilen = nameslist.length; i < ilen; i += 1) {
+        var names = nameslist.item(i);
+        var namelist = names.getElementsByTagName("name");
+        if ((!namelist || namelist.length === 0)
+            || names.parentNode.tagName.toLowerCase() !== "substitute") {
+            
+            var doc = names.ownerDocument;
+            var name = doc.createElement("name");
+            names.appendChild(name);
+        }
+    };
+};
+
 CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
     zotero.Debug('CSL_NODEJS.addInstitutionNodes');
     //zotero.Debug("myxml : " + myxml.nodeName + " : " + myxml.nodeValue);
@@ -670,5 +687,18 @@ CSL_NODEJS_JSDOM.prototype.addInstitutionNodes = function(myxml) {
     }
     zotero.Debug("done with addInstitutionNodes");
 };
+
+CSL_NODEJS_JSDOM.prototype.flagDateMacros = function(myxml) {
+    var pos, len, thenode, thedate;
+    nodes = myxml.getElementsByTagName("macro");
+    for (pos = 0, len = nodes.length; pos < len; pos += 1) {
+        thenode = nodes.item(pos);
+        thedate = thenode.getElementsByTagName("date");
+        if (thedate.length) {
+            thenode.setAttribute('macro-has-date', 'true');
+        }
+    }
+};
+
 
 exports.CSL_NODEJS_JSDOM = CSL_NODEJS_JSDOM;
