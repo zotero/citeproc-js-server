@@ -1789,7 +1789,7 @@ CSL.DateParser = function () {
 };
 CSL.Engine = function (sys, style, lang, forceLang) {
     var attrs, langspec, localexml, locale;
-    this.processor_version = "1.0.287";
+    this.processor_version = "1.0.288";
     this.csl_version = "1.0";
     this.sys = sys;
     this.sys.xml = new CSL.System.Xml.Parsing();
@@ -2588,6 +2588,7 @@ CSL.Engine.prototype.restoreProcessorState = function (citations) {
     } else {
         this.registry = new CSL.Registry(this);
         this.tmp = new CSL.Engine.Tmp();
+        this.disambiguate = new CSL.Disambiguation(this);
     }
     return ret;
 };
@@ -6924,6 +6925,9 @@ CSL.Node.number = {
                     state.processNumber(node, Item, varname);
                 }
             }
+            if (varname === "locator") {
+                state.tmp.done_vars.push("locator");
+            }
             var values = state.tmp.shadow_numbers[varname].values;
             var blob;
             var newstr = ""
@@ -9832,7 +9836,7 @@ CSL.Engine.prototype.processNumber = function (node, ItemObject, variable) {
 CSL.Util.PageRangeMangler = {};
 CSL.Util.PageRangeMangler.getFunction = function (state) {
     var rangerex, pos, len, stringify, listify, expand, minimize, minimize_internal, chicago, lst, m, b, e, ret, begin, end, ret_func, ppos, llen;
-    var range_delimiter = state.getTerm("range-delimiter");
+    var range_delimiter = state.getTerm("page-range-delimiter");
     rangerex = /([a-zA-Z]*)([0-9]+)\s*-\s*([a-zA-Z]*)([0-9]+)/;
     stringify = function (lst) {
         len = lst.length;
@@ -9842,7 +9846,7 @@ CSL.Util.PageRangeMangler.getFunction = function (state) {
             }
         }
         var ret = lst.join("");
-        ret = ret.replace(/([0-9])\-/, "$1\u2013", "g").replace(/\-([0-9])/, "\u2013$1", "g")
+        ret = ret.replace(/([0-9])\-/, "$1"+state.getTerm("page-range-delimiter"), "g").replace(/\-([0-9])/, state.getTerm("page-range-delimiter")+"$1", "g")
         return ret;
     };
     listify = function (str, hyphens) {
