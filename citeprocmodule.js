@@ -1787,7 +1787,7 @@ CSL.DateParser = function () {
 };
 CSL.Engine = function (sys, style, lang, forceLang) {
     var attrs, langspec, localexml, locale;
-    this.processor_version = "1.0.294";
+    this.processor_version = "1.0.295";
     this.csl_version = "1.0";
     this.sys = sys;
     this.sys.xml = new CSL.System.Xml.Parsing();
@@ -2894,6 +2894,7 @@ CSL.getBibliographyEntries = function (bibsection) {
             this.parallel.ComposeSet();
             this.parallel.PruneOutputQueue();
         } else if (!this.registry.registry[item.id].siblings) {
+            this.parallel.StartCitation(sortedItems);
             this.tmp.term_predecessor = false;
             entry_item_ids.push("" + CSL.getCite.call(this, item));
         }
@@ -7196,6 +7197,7 @@ CSL.Node.text = {
                                 var idx, value;
                                 value = state.getVariable(Item, "page", form);
                                 if (value) {
+                                    value = ""+value;
                                     value = value.replace("\u2013", "-", "g");
                                     idx = value.indexOf("-");
                                     if (idx > -1) {
@@ -7208,6 +7210,7 @@ CSL.Node.text = {
                             func = function (state, Item) {
                                 var value = state.getVariable(Item, "page", form);
                                 if (value) {
+                                    value = ""+value;
                                     value = value.replace(/([^\\])--*/g,"$1"+state.getTerm("page-range-delimiter"));
                                     value = value.replace(/\\-/g,"-");
                                     value = state.fun.page_mangler(value);
