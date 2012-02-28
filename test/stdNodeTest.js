@@ -11,17 +11,9 @@ var StdNodeTest = function(CSL,myname,custom,dir){
 	}
 	this.localepre = "./citeproc-js/locale/locales-";
 	this._cache = {};
-	this._acache = { "default": {
-						 "container-title":{},
-						 "collection-title":{},
-						 "authority":{},
-						 "institution":{},
-						 "title":{},
-						 "publisher":{},
-						 "publisher-place":{},
-						 "hereinafter":{}
-					 }
-				   };
+	this._acache =  {};
+    this._acache["default"] = new this.CSL.AbbreviationSegments();
+
 	this._ids = [];
 	if (myname){
 		var test;
@@ -49,12 +41,62 @@ StdNodeTest.prototype.retrieveItem = function(id){
 	return this._cache[id];
 };
 
-StdNodeTest.prototype.getAbbreviations = function(name,vartype){
-	return this._acache[name][vartype];
+StdNodeTest.prototype.getAbbreviation = function(dummyListNameVar, obj, jurisdiction, category, key){
+    var newkey = key;
+    if (!this._acache[jurisdiction]) {
+        this._acache[jurisdiction] = new this.CSL.AbbreviationSegments();
+    }
+    if (!obj[jurisdiction]) {
+        obj[jurisdiction] = new this.CSL.AbbreviationSegments();
+    }    
+    var jurisdictions = ["default"];
+    if (jurisdiction !== "default") {
+        jurisdictions.push(jurisdiction);
+    }
+    jurisdictions.reverse();
+    var haveHit = false;
+    for (var i = 0, ilen = jurisdictions.length; i < ilen; i += 1) {
+        var myjurisdiction = jurisdictions[i];
+        if (this._acache[myjurisdiction][category][key]) {
+            obj[myjurisdiction][category][key] = this._acache[myjurisdiction][category][key];
+            jurisdiction = myjurisdiction;
+            haveHit = true;
+            break;
+        }
+    }
+    if (!haveHit) {
+        for (var i = 0, ilen = jurisdictions.length; i < ilen; i += 1) {
+            if (["container-title", "collection-title", "number"].indexOf(category) > -1) {
+                // Let's just be inefficient
+                for (var phrase in this._acache[jurisdictions[i]]["container-phrase"]) {
+                    var newphrase = this._acache[jurisdictions[i]]["container-phrase"][phrase];
+                    newkey = newkey.replace(phrase, newphrase);
+                }
+            } else if (["institution-part", "title", "place"].indexOf(category) > -1) {
+                // And again
+                for (var phrase in this._acache[jurisdictions[i]]["title-phrase"]) {
+                    var newphrase = this._acache[jurisdictions[i]]["title-phrase"][phrase];
+                    newkey = newkey.replace(phrase, newphrase);
+                }
+            }
+        }
+        if (key !== newkey) {
+            obj[jurisdiction][category][key] = newkey;
+        } else {
+            obj[jurisdiction][category][key] = "";
+        }
+    }
+    return jurisdiction;
 };
 
-StdNodeTest.prototype.addAbbreviation = function(name,vartype,key,val){
-	this._acache[name][vartype][key] = val;
+
+
+
+StdNodeTest.prototype.addAbbreviation = function(jurisdiction,vartype,key,val){
+    if (!this._acache[jurisdiction]) {
+        this._acache[jurisdiction] = new this.CSL.AbbreviationSegments();
+    }
+	this._acache[jurisdiction][vartype][key] = val;
 };
 
 //
@@ -103,7 +145,7 @@ StdNodeTest.prototype.run = function(){
 	var len, pos, ret, id_set, nick;
 	ret = new Array();
 	this.style = new this.CSL.Engine(this,this.test.csl);
-	this.style.setAbbreviations("default");
+    this.style.setAbbreviations("default");
 	if (this.test.abbreviations) {
 		for (nick in this.test.abbreviations) {
 			for (field in this.test.abbreviations[nick]) {
