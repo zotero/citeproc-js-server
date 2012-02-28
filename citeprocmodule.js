@@ -456,14 +456,13 @@ var CSL = {
     locale_opts: {},
     locale_dates: {}
 };
-if (typeof module !== 'undefined' && "exports" in module) {
+if (typeof require !== "undefined" && typeof module !== 'undefined' && "exports" in module) {
     var CSL_IS_NODEJS = true;
     var CSL_NODEJS = require("./csl_nodejs_jsdom").CSL_NODEJS_JSDOM;
     exports.CSL = CSL;
 }
 CSL.TERMINAL_PUNCTUATION_REGEXP = new RegExp("^([" + CSL.TERMINAL_PUNCTUATION.slice(0, -1).join("") + "])(.*)");
 CSL.CLOSURES = new RegExp(".*[\\]\\)]");
-var console;
 if ("object" === typeof console && "function" === typeof console.log) {
     CSL.debug = function (str) {
         console.log("CSL: " + str);
@@ -480,7 +479,6 @@ if ("object" === typeof console && "function" === typeof console.log) {
 CSL.getSortCompare = function () {
     var strcmp;
     try {
-        var Components;
         var localeService = Components.classes["@mozilla.org/intl/nslocaleservice;1"]
             .getService(Components.interfaces.nsILocaleService);
         var collationFactory = Components.classes["@mozilla.org/intl/collation-factory;1"]
@@ -1789,7 +1787,7 @@ CSL.DateParser = function () {
 };
 CSL.Engine = function (sys, style, lang, forceLang) {
     var attrs, langspec, localexml, locale;
-    this.processor_version = "1.0.288";
+    this.processor_version = "1.0.294";
     this.csl_version = "1.0";
     this.sys = sys;
     this.sys.xml = new CSL.System.Xml.Parsing();
@@ -3896,7 +3894,7 @@ CSL.Engine.prototype.localeSet = function (myxml, lang_in, lang_out) {
             }
         }
     }
-    if (lang_out && lang_out.slice(0, 2) === "fr") {
+    if (lang_out && ["fr", "pt"].indexOf(lang_out.slice(0, 2).toLowerCase()) > -1) {
         this.locale[lang_out].terms["page-range-delimiter"] = "-";
     } else {
         this.locale[lang_out].terms["page-range-delimiter"] = "\u2013";
@@ -5478,6 +5476,9 @@ CSL.NameOutput.prototype.disambigNames = function () {
 CSL.NameOutput.prototype._runDisambigNames = function (lst, pos) {
     var chk, myform, myinitials, param, i, ilen, paramx;
     for (i = 0, ilen = lst.length; i < ilen; i += 1) {
+        if (!lst[i].given || !lst[i].family) {
+            continue;
+        }
         this.state.registry.namereg.addname("" + this.Item.id, lst[i], i);
         chk = this.state.tmp.disambig_settings.givens[pos];
         if ("undefined" === typeof chk) {
@@ -6941,18 +6942,20 @@ CSL.Node.number = {
             if (newstr && !newstr.match(/^[-.\u20130-9]+$/)) {
                 state.output.append(newstr, this);
             } else {
-                state.output.openLevel("empty");
-                for (var i = 0, ilen = values.length; i < ilen; i += 1) {
-                    var blob = new CSL[values[i][0]](values[i][1], values[i][2], Item.id);
-                    if (i > 0) {
-                        blob.strings.prefix = blob.strings.prefix.replace(/^\s*/, "");
+                if (values.length) {
+                    state.output.openLevel("empty");
+                    for (var i = 0, ilen = values.length; i < ilen; i += 1) {
+                        var blob = new CSL[values[i][0]](values[i][1], values[i][2], Item.id);
+                        if (i > 0) {
+                            blob.strings.prefix = blob.strings.prefix.replace(/^\s*/, "");
+                        }
+                        if (i < values.length - 1) {
+                            blob.strings.suffix = blob.strings.suffix.replace(/\s*$/, "");
+                        }
+                        state.output.append(blob, "literal", false, false, true);
                     }
-                    if (i < values.length - 1) {
-                        blob.strings.suffix = blob.strings.suffix.replace(/\s*$/, "");
-                    }
-                    state.output.append(blob, "literal", false, false, true);
+                    state.output.closeLevel("empty");
                 }
-                state.output.closeLevel("empty");
             }
             state.parallel.CloseVariable("number");
         };
@@ -7168,9 +7171,6 @@ CSL.Node.text = {
                         } else {
                             state.transform.setTransformFallback(true);
                             state.transform.setAbbreviationFallback(true);
-                            if (this.variables_real[0] === "subjurisdiction") {
-                                state.transform.setSuppressMonitor("container-title");
-                            }
                             func = state.transform.getOutputFunction(this.variables);
 						}
                         if (this.variables_real[0] === "container-title") {
@@ -8120,10 +8120,7 @@ CSL.Attributes["@display"] = function (state, arg) {
     this.strings.cls = arg;
 };
 var XML_PARSING;
-var CSL_E4X;
-var CSL_CHROME;
-var DOMParser;
-if (CSL_IS_NODEJS) {
+if ("undefined" !== typeof CSL_IS_NODEJS) {
     XML_PARSING = CSL_NODEJS;
 } else if ("undefined" !== typeof CSL_E4X) {
     XML_PARSING = CSL_E4X;
@@ -8264,8 +8261,7 @@ CSL.Transform = function (state) {
         opt = {
             abbreviation_fallback: false,
             alternative_varname: false,
-            transform_fallback: false,
-            suppress_monitor: false
+            transform_fallback: false
         };
     }
     this.init = init;
@@ -8341,10 +8337,6 @@ CSL.Transform = function (state) {
         opt.abbreviation_fallback = b;
     }
     this.setAbbreviationFallback = setAbbreviationFallback;
-    function setSuppressMonitor(b) {
-        opt.suppress_monitor = b;
-    }
-    this.setSuppressMonitor = setSuppressMonitor;
     function setAlternativeVariableName(s) {
         opt.alternative_varname = s;
     }
@@ -8418,7 +8410,6 @@ CSL.Transform = function (state) {
         var abbreviation_fallback = opt.abbreviation_fallback;
         var alternative_varname = opt.alternative_varname;
         var transform_fallback = opt.transform_fallback;
-        var suppress_monitor = opt.suppress_monitor;
 		var localesets;
         var langPrefs = CSL.LangPrefsMap[myfieldname];
         if (!langPrefs) {
@@ -8482,10 +8473,13 @@ CSL.Transform = function (state) {
 			}
             if (myabbrev_family) {
                 primary = abbreviate(state, Item, alternative_varname, primary, myabbrev_family, true);
-                if (suppress_monitor && primary) {
-                    suppressing_partner = abbreviate(state, Item, false, Item["container-title"], "container-title", true);
-                    if (suppressing_partner && suppressing_partner.slice(0, primary.length) === primary) {
-                        return null;
+                if (primary) {
+                    var m = primary.match(/^!([-_a-z]+)<<</);
+                    if (m) {
+                        primary = primary.slice(m[0].length);
+                        if (state.tmp.done_vars.indexOf(m[1]) === -1) {
+                            state.tmp.done_vars.push(m[1]);
+                        }
                     }
                 }
                 secondary = abbreviate(state, Item, false, secondary, myabbrev_family, true);
