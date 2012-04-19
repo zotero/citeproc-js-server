@@ -29,6 +29,7 @@ var fs = require('fs');
 var http = require('http');
 var url = require('url');
 var citeproc = require('./citeprocnode');
+var async = require('async');
 
 //global namespace citation server variable
 var zcite = {};
@@ -41,7 +42,7 @@ zcite.citeproc = citeproc;
 var args = process.argv;
 for(var i = 1; i < args.length; i++){
     if(args[i].substr(0, 4) == 'port'){
-        zcite.config.listenport = parseInt(args[i].substr(5));
+        zcite.config.listenport = parseInt(args[i].substr(5), 10);
     }
 }
 
@@ -54,7 +55,7 @@ zcite.cslFetcher.init(zcite.config);
 
 //set up debug/logging output
 //logging, especially of errors, should be changed to be more consistent with other server log formats
-if(zcite.config.debugLog == false){
+if(zcite.config.debugLog === true){
     console.log("no debugLog");
     zcite.log = function(m){};
 }
@@ -94,7 +95,7 @@ zcite.respondException = function(err, response, statusCode){
         zcite.debug(console.trace());
     }
     if(typeof statusCode == 'undefined'){
-        var statusCode = 500;
+        statusCode = 500;
     }
     if(typeof response != "undefined"){
         if(typeof err == "string"){
@@ -191,14 +192,14 @@ zcite.cacheLoadEngine = function(styleUri, locale){
     }
     var cacheEngineString = styleUri + ':' + locale;
     zcite.debug(cacheEngineString, 5);
-    if((typeof zcite.cachedEngines[cacheEngineString] == 'undefined') || 
+    if((typeof zcite.cachedEngines[cacheEngineString] == 'undefined') ||
        (typeof zcite.cachedEngines[cacheEngineString].store == 'undefined')){
         zcite.debug("no cached engine found", 5);
         return false;
     }
     else if(zcite.cachedEngines[cacheEngineString].store instanceof Array){
         //have the processor on record
-        if(zcite.cachedEngines[cacheEngineString].store.length == 0){
+        if(zcite.cachedEngines[cacheEngineString].store.length === 0){
             //don't have any of this processor ready for work
             return false;
         }
@@ -231,7 +232,7 @@ zcite.cacheSaveEngine = function(citeproc, styleUri, locale){
     }
     else{
         if(this.cachedEngines[cacheEngineString].store instanceof Array){
-            zcite.debug('pushing instance of engine', 5)
+            zcite.debug('pushing instance of engine', 5);
             zcite.cachedEngines[cacheEngineString].store.push(citeproc);
             zcite.cachedEngines[cacheEngineString].used = Date.now();
             zcite.debug('cachedEngines[cacheEngineString].store.length:' + zcite.cachedEngines[cacheEngineString].store.length, 5);
@@ -250,8 +251,9 @@ zcite.cleanCache = function(){
     var gcCacheArray = [];
     var totalCount = 0;
     var cachedEngines = zcite.cachedEngines;
+    var i;
     //add cached engine stores to array for sorting
-    for(var i in cachedEngines){
+    for(i in cachedEngines){
         gcCacheArray.push(i);
         zcite.debug(i);
         totalCount += cachedEngines[i].store.length;
@@ -264,21 +266,21 @@ zcite.cleanCache = function(){
             return zcite.cachedEngines[b].used - zcite.cachedEngines[a].used;
         });
         //make cleaning runs until we get under the desired count
-        for(var i = 0; i < gcCacheArray.length; i++){
+        for(i = 0; i < gcCacheArray.length; i++){
             var engineStr = gcCacheArray[i];
             var engine = cachedEngines[engineStr];
-            if(engine.store.length == 0){
+            if(engine.store.length === 0){
                 continue;
             }
             if(engine.store.length == 1){
-                delete engine.store.pop();
+                engine.store.pop();
                 totalCount--;
             }
             else{
                 //remove half of these engines on this pass
                 var numToRemove = Math.floor(engine.store.length / 2);
-                for(var i = 0; i < numToRemove; i++){
-                    delete engine.store.pop();
+                for(var j = 0; j < numToRemove; j++){
+                    engine.store.pop();
                     totalCount--;
                 }
             }
@@ -286,9 +288,9 @@ zcite.cleanCache = function(){
     }
     zcite.debug("DONE CLEANING CACHE");
     return totalCount;
-}
+};
 
-//precache CSL Engines on startup with style:locale 
+//precache CSL Engines on startup with style:locale
 zcite.debug('precaching CSL engines', 5);
 zcite.precache = false;
 /*
@@ -398,7 +400,7 @@ Step(
         return true;
     }
 );
-*/    
+*/
 
 //callback for when engine is fully initialized and ready to process the request
 zcite.runRequest = function(zcreq){
@@ -408,6 +410,7 @@ zcite.runRequest = function(zcreq){
         var citeproc = zcreq.citeproc;
         var config = zcreq.config;
         var responseJson = {};
+        var bib;
         
         //delete zcreq.citeproc;
         //zcite.debug(zcreq, 5);
@@ -427,7 +430,7 @@ zcite.runRequest = function(zcreq){
         //switch process depending on bib or citation
         if(config.bibliography == "1"){
             zcite.debug('generating bib', 5);
-            var bib = citeproc.makeBibliography();
+            bib = citeproc.makeBibliography();
             zcite.debug("bib generated", 5);
             responseJson.bibliography = bib;
         }
@@ -498,7 +501,7 @@ zcite.configureRequest = function(uriConf){
     //config.cslOutput = (typeof uriConf.csloutput == 'undefined' ) ? 'bibliography' : uriConf.csloutput;
     config.memoryUsage = (typeof uriConf.memoryUsage == 'undefined' ) ? '0' : '1';
     return config;
-}
+};
 
 http.createServer(function (request, response) {
     //zcreq keeps track of information about this request and is passed around
@@ -511,7 +514,7 @@ http.createServer(function (request, response) {
             'Date': nowdate.toUTCString(),
             'Allow': 'POST,OPTIONS',
             'Content-Length': 0,
-            'Content-Type': 'text/plain',
+            'Content-Type': 'text/plain'
         });
         response.end('');
         return;
@@ -552,8 +555,9 @@ http.createServer(function (request, response) {
             zcreq.config = config;
             //need to keep response in zcreq so async calls stay tied to a request
             zcreq.response = response;
+            var postObj;
             try{
-                var postObj = JSON.parse(this.POSTDATA);
+                postObj = JSON.parse(this.POSTDATA);
                 zcreq.postObj = postObj;
             }
             catch(err){
@@ -577,14 +581,15 @@ http.createServer(function (request, response) {
             var autoCitationClusters = [];
             var noteIndexCount = 0;
             if(typeof zcreq.citationClusters != 'undefined'){
-                var addCitationClusters = false;
+                addCitationClusters = false;
             }
             
             //push itemIDs onto array and id referenced object for updateItems and retrieveItem function
             //items can be passed in as an object with keys becoming IDs, but ordering will not be guarenteed
+            var i;
             if(reqItems instanceof Array){
                 //console.log(reqItems);
-                for(var i = 0; i < reqItems.length; i++){
+                for(i = 0; i < reqItems.length; i++){
                     reqItemsObj[reqItems[i]['id']] = reqItems[i];
                     if(typeof postObj.itemIDs == 'undefined'){
                         reqItemIDs.push(reqItems[i]['id']);
@@ -593,7 +598,7 @@ http.createServer(function (request, response) {
             }
             else if(typeof zcreq.postObj.items == 'object'){
                 reqItemsObj = postObj.items;
-                for(var i in reqItemsObj){
+                for(i in reqItemsObj){
                     if(reqItemsObj.hasOwnProperty(i)){
                         if(reqItemsObj[i].id != i){
                             throw "Item ID did not match Object index";
@@ -605,13 +610,13 @@ http.createServer(function (request, response) {
             
             //actually add the citationItems
             if(addCitationClusters){
-                for(var i = 0; i < reqItemIDs.length; i++){
+                for(i = 0; i < reqItemIDs.length; i++){
                     var itemid = reqItemIDs[i];
                     autoCitationClusters.push(
                     {
                         "citationItems": [
                             {
-                                id: itemid,
+                                id: itemid
                             }
                         ],
                         "properties": {
@@ -645,98 +650,78 @@ http.createServer(function (request, response) {
             //make style identifier so we can check caches for real
             //check for citeproc engine cached
             //otherwise check for cached style
-            //-initialize 
-            Step(
-                function fetchStyleIdentifier(){
+            //-initialize
+            async.waterfall([
+                function fetchStyleIdentifier(callback){
                     //put the passed styleUrl into a standard form (adding www.zotero.org to short names)
                     zcite.debug("request step: fetchStyleIdentifier", 5);
                     //short circuit on posted style
                     if(!zcreq.postedStyle){
                         zcreq.styleUrlObj = zcite.cslFetcher.processStyleIdentifier(zcreq.config.style);
-                        zcite.cslFetcher.resolveStyle(zcreq, this);
+                        zcite.cslFetcher.resolveStyle(zcreq, callback);
                     }
                     else{
-                        this(null, zcreq);
+                        callback(null, zcreq);
+                        //this(null, zcreq);
                     }
                     //return zcreq;
                 },
-                function tryCachedEngine(err, zcreq){
-                    if(err){
-                        zcite.debug("rethrowing error in tryCachedEngine");
-                        throw err;
-                    }
+                function tryCachedEngine(zcreq, callback){
                     zcite.debug("request step: tryCachedEngine", 5);
                     //short circuit on posted style
-                    if(zcreq.postedStyle) return zcreq;
+                    if(zcreq.postedStyle) callback(null, zcreq);
                     
                     //check for cached version or create new CSL Engine
-                    var citeproc;
-                    if(citeproc = zcite.cacheLoadEngine(zcreq.styleUrlObj.href, zcreq.config.locale)){
+                    var citeproc = zcite.cacheLoadEngine(zcreq.styleUrlObj.href, zcreq.config.locale);
+                    if(citeproc){
                         citeproc.sys.items = zcreq.reqItemsObj;
                         zcite.debug("citeproc.sys.items reset for zcreq", 5);
                         zcreq.citeproc = citeproc;
                     }
                     
-                    return zcreq;
+                    callback(null, zcreq);
+                    //return zcreq;
                 },
-                function fetchStyle(err, zcreq){
+                function fetchStyle(zcreq, callback){
                     zcite.debug("request step: fetchStyle", 5);
-                    if(err){
-                        zcite.debug("rethrowing error in fetchStyle", 5);
-                        throw err;
-                    }
                     if(typeof zcreq.citeproc != 'undefined'){
                         //have cached engine, don't need csl xml
                         zcite.debug("already have citeproc : continuing", 5);
-                        return zcreq;
+                        callback(null, zcreq);
+                        //return zcreq;
                     }
                     var cslXml;
                     
-                    /*if(cslXml = zcite.cslFetcher.getCachedStyle(zcreq.styleUrlObj.href)){
-                        //successfully fetched cached style - load engine and run request
-                        zcreq.cslXml = cslXml;
-                        return zcreq;
-                    }
-                    else{*/
-                    zcite.cslFetcher.fetchStyle(zcreq, this);
-                    //}
+                    //TODO: cache styles passed as URI if we want to support those
+                    
+                    zcite.cslFetcher.fetchStyle(zcreq, callback);
                 },
-                function createEngine(err, zcreq){
+                function createEngine(zcreq, callback){
                     zcite.debug("request step: createEngine", 5);
-                    if(err){
-                        zcite.debug("rethrowing error in createEngine");
-                        throw err;
-                    }
                     //zcite.debug("cslXml: " + zcreq.cslXml, 5);
                     if(typeof zcreq.citeproc != 'undefined'){
                         //have cached engine, don't need csl xml
                         zcite.debug("still no cached engine", 5);
-                        return zcreq;
+                        callback(null, zcreq);
                     }
-                    zcite.createEngine(zcreq, this);
+                    zcite.createEngine(zcreq, callback);
                 },
-                function runRequest(err, zcreq){
+                function runRequest(zcreq, callback){
                     zcite.debug("request step: runRequest", 5);
-                    if(err){
-                        zcite.debug("rethrowing error in runRequest");
-                        throw err;
-                    }
                     //console.log(zcreq);
-                    zcite.runRequest(zcreq, this);
-                },
-                function catchError(err, zcreq){
-                    zcite.debug("request step: catchError", 5);
-                    if(err) {
-                        zcite.debug("error in Step", 5);
-                        zcite.respondException(err, zcreq.response);
-                    }
-                    else{
-                        zcite.debug("request step finished without apparent error", 5);
-                    }
+                    zcite.runRequest(zcreq, callback);
                 }
-            );
-            
-            
+            ],
+            function(err, results){
+                //overall waterfall callback
+                if(err){
+                    zcite.debug("Error thrown in async waterfall running request");
+                    zcite.respondException(err, zcreq.response);
+                }
+                else{
+                    zcite.debug("request step finished without apparent error", 5);
+                }
+            });
         }
         catch(err){
             zcite.debug(err.message);
