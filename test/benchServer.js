@@ -35,52 +35,24 @@ var config = {
     'citations':'0',
     'outputformat':'html',
     'memoryUsage':false,
-    'cslPath': '/home/fcheslack/pub_web/citeproc-node/csl'
+    'cslPath': '/home/fcheslack/pub_web/citeproc-node/csl',
+    'testAllStyles': false,
+    'customStylePath': ''
 };
-var args = process.argv;
-//var util = require('util');
+
+var argv = require('optimist')
+    .usage('')
+    //.demand(['track', 'db'])
+    .default(config) //db to store tweets in
+    .argv;
+
+config = argv;
+
+var util = require('util');
 var fs = require('fs');
 
-for(var i = 1; i < args.length; i++){
-    if(args[i].substr(0, 14) == 'maxconnections'){
-        config.parallel = parseInt(args[i].substr(15));
-    }
-    else if(args[i].substr(0, 8) == 'duration'){
-        config.duration = parseInt(args[i].substr(9));
-    }
-    else if(args[i].substr(0, 10) == 'showoutput'){
-        config.showOutput = true;
-    }
-    else if(args[i].substr(0, 5) == 'style'){
-        config.style = args[i].substr(6);
-    }
-    else if(args[i].substr(0, 14) == 'responseformat'){
-        config.responseformat = args[i].substr(15);
-    }
-    else if(args[i].substr(0, 12) == 'bibliography'){
-        config.bibliography = args[i].substr(13);
-    }
-    else if(args[i].substr(0, 9) == 'citations'){
-        config.citations = args[i].substr(10);
-    }
-    else if(args[i].substr(0, 4) == 'help'){
-        console.log(config);
-        process.exit();
-    }
-    else if(args[i].substr(0, 11) == 'memoryUsage'){
-        config.memoryUsage = true;
-    }
-    else if(args[i].substr(0, 11) == 'maxRequests'){
-        config.maxtotalrequests = parseInt(args[i].substr(12));
-    }
-    else if(args[i].substr(0, 15) == 'customStylePath'){
-        config.customStylePath = args[i].substr(16);
-        console.log(config.customStylePath);
-        config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
-    }
-    else if (args[i].substr(0, 13) == 'testAllStyles'){
-        config.testAllStyles = true;
-    }
+if(argv.customStylePath !== '') {
+    config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
 }
 
 var stylesList = fs.readdirSync(config.cslPath);
@@ -107,20 +79,20 @@ for(var i=0; i < bib2.length; i++){
 }
 //bib1post.citationClusters = loadcites.citations1;
 //bib2post.citationClusters = loadcites.citations1;
-var styleStrings = ['apsa', 
-                    'apa', 
-                    'asa', 
-                    'chicago-author-date', 
-                    'chicago-fullnote-bibliography', 
-                    'chicago-note-bibliography', 
-                    'chicago-note', 
-                    'harvard1', 
-                    'ieee', 
-                    'mhra', 
-                    'mhra_note_without_bibliography', 
-                    'mla', 
-                    'nlm', 
-                    'nature', 
+var styleStrings = ['apsa',
+                    'apa',
+                    'asa',
+                    'chicago-author-date',
+                    'chicago-fullnote-bibliography',
+                    'chicago-note-bibliography',
+                    'chicago-note',
+                    'harvard1',
+                    'ieee',
+                    'mhra',
+                    'mhra_note_without_bibliography',
+                    'mla',
+                    'nlm',
+                    'nature',
                     'vancouver'
                     ];
 
@@ -131,7 +103,7 @@ reqBody = JSON.stringify(bib2post);
 //console.log('postObj:');
 //console.log(bib2post);
 //console.log(bib1post);
-//fs.writeFileSync('./prettyRequestBodyJson', sys.inspect(bib1post, false, null), 'utf8');
+//fs.writeFileSync('./prettyRequestBodyJson', util.inspect(bib1post, false, null), 'utf8');
 //console.log("\n\n");
 
 var randReqCombo = function(){
@@ -142,12 +114,12 @@ var randReqCombo = function(){
         }
     }
     return post;
-}
+};
 
 var randStyle = function(){
     var randomnumber=Math.floor(Math.random()*(styleStrings.length));
     return styleStrings[randomnumber];
-}
+};
 
 var continueRequests = true;
 var timeout = config.duration * 1000;
@@ -162,7 +134,8 @@ var outputStats = function(){
     var totalTime = 0;
     var maxTime = 0;
     var minTime = 5000;
-    for(var i = 0; i < connectionResults.length; i++){
+    var i;
+    for(i = 0; i < connectionResults.length; i++){
         var reqTime = connectionResults[i].requestTime;
         totalTime += reqTime;
         maxTime = Math.max(maxTime, reqTime);
@@ -175,12 +148,12 @@ var outputStats = function(){
     console.log('total Benchmark Time: ' + (Date.now() - benchStart));
     console.log('==========================');
     console.log('Passed Styles:');
-    for(var i=0; i<passedStyles.length; i++){
+    for(i=0; i<passedStyles.length; i++){
         console.log(passedStyles[i]);
     }
     console.log('==========================');
     console.log('Failed Styles:');
-    for(var i=0; i<errorStyles.length; i++){
+    for(i=0; i<errorStyles.length; i++){
         console.log(errorStyles[i]);
     }
     setTimeout(function(){
@@ -221,9 +194,10 @@ var makeRequests = function(){
 //make a single request
 var singleRequest = function(){
     console.log("making new request");
+    var request;
     
     if(config.memoryUsage){
-        var request = localCiteConn.request('POST', '/?memoryUsage=1', {'host':targetHost});
+        request = localCiteConn.request('POST', '/?memoryUsage=1', {'host':targetHost});
         request.on('response', function (response) {
             console.log("STATUS: " + response.statusCode);
             response.setEncoding('utf8');
@@ -261,7 +235,7 @@ var singleRequest = function(){
     if(config.citations == '1'){qstring += '&citations=1';}
     if(config.outputformat != 'html'){qstring += '&outputformat=' + config.outputformat;}
     
-    var request = localCiteConn.request('POST', '/?' + qstring,
+    request = localCiteConn.request('POST', '/?' + qstring,
         {'host': targetHost});
     request.startDate = Date.now();
     request.styleUsed = useStyleString;
@@ -296,6 +270,6 @@ var singleRequest = function(){
     });
     request.write(reqBody, 'utf8');
     request.end();
-}
+};
 
 makeRequests();
