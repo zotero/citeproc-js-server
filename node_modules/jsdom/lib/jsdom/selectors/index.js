@@ -1,28 +1,39 @@
-var Sizzle = require("./sizzle").Sizzle;
-exports.applyQuerySelectorPrototype = function(dom) {
-  dom.Document.prototype.querySelector = function(selector) {
-    return Sizzle(selector, this)[0];
-  };
+var createSizzle = require("./sizzle");
+exports.applyQuerySelector = function(doc, dom) {
+  var addSizzle = function(document) {
 
-  dom.Document.prototype.querySelectorAll = function(selector) {
-    var self = this;
-    return new dom.NodeList(self, function() {
-      return Sizzle(selector, self);
-    });
-  };
-
-  dom.Element.prototype.querySelector = function(selector) {
-    return Sizzle(selector, this)[0];
-  };
-
-  dom.Element.prototype.querySelectorAll = function(selector) {
-    var self = this;
-    if( !this.parentNode ){
-      self = this.ownerDocument.createElement("div");
-      self.appendChild(this);
+    if (!document._sizzle) {
+      document._sizzle = createSizzle(document);
     }
-    return new dom.NodeList(self.ownerDocument, function() {
-      return Sizzle(selector, self.parentNode || self);
-    });
+    return document._sizzle;
   };
+
+  doc.querySelector = function(selector) {
+    return addSizzle(this)(selector, this)[0];
+  };
+
+  doc.querySelectorAll = function(selector) {
+    return new dom.NodeList(addSizzle(this)(selector, this));
+  };
+
+  var _createElement = doc.createElement;
+  doc.createElement = function() {
+      var element = _createElement.apply(this, arguments);
+
+      element.querySelector = function(selector) {
+        return addSizzle(this.ownerDocument)(selector, this)[0];
+      };
+
+      element.querySelectorAll = function(selector) {
+        var el = this;
+        if (!this.parentNode) {
+          el = this.ownerDocument.createElement("div");
+          el.appendChild(this);
+        }
+        return new dom.NodeList(addSizzle(this.ownerDocument)(selector, el.parentNode || el));
+      };
+
+      return element;
+  };
+
 };

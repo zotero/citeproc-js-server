@@ -1,6 +1,34 @@
 /*
   ServerJS Javascript DOM Level 1
 */
+
+// utility functions
+var attachId = function(id,elm,doc) {
+  if (id && elm && doc) {
+    if (!doc._ids[id]) {
+      doc._ids[id] = [];
+    }
+    doc._ids[id].push(elm);
+  }
+};
+var detachId = function(id,elm,doc) {
+  var elms, i;
+  if (id && elm && doc) {
+    if (doc._ids && doc._ids[id]) {
+      elms = doc._ids[id];
+      for (i=0;i<elms.length;i++) {
+        if (elms[i] === elm) {
+          elms.splice(i,1);
+          i--;
+        }
+      }
+      if (elms.length === 0) {
+        delete doc._ids[id];
+      }
+    }
+  }
+};
+
 var core = {
 
   mapper: function(parent, filter, recursive) {
@@ -12,7 +40,7 @@ var core = {
   // Returns Array
   mapDOMNodes : function(parent, recursive, callback) {
     function visit(parent, result) {
-      return parent.childNodes.toArray().reduce(reducer, result);
+      return parent.childNodes.reduce(reducer, result);
     }
 
     function reducer(array, child) {
@@ -138,7 +166,22 @@ core.DOMException.prototype = {
 
 core.DOMException.prototype.__proto__ = Error.prototype;
 
+var NodeArray = function() {};
+NodeArray.prototype = new Array();
+NodeArray.prototype.item = function(i) {
+  return this[i];
+};
+
 core.NodeList = function NodeList(element, query) {
+  if (!query) {
+    // Non-live NodeList
+    var list = new NodeArray();
+    if (Array.isArray(element)) {
+      Array.prototype.push.apply(list, element);
+    }
+
+    return list;
+  }
   Object.defineProperties(this, {
     _element: {value: element},
     _query: {value: query},
@@ -150,13 +193,14 @@ core.NodeList = function NodeList(element, query) {
 };
 core.NodeList.prototype = {
   update: function() {
+    var i;
     if (this._element && this._version < this._element._version) {
-      for (var i = 0; i < this._length; i++) {
+      for (i = 0; i < this._length; i++) {
         this[i] = undefined;
       }
       var nodes = this._snapshot = this._query();
       this._length = nodes.length;
-      for (var i = 0; i < nodes.length; i++) {
+      for (i = 0; i < nodes.length; i++) {
         this[i] = nodes[i];
       }
       this._version = this._element._version;
@@ -291,22 +335,11 @@ var attrCopy = function(src, dest, fn) {
 };
 
 core.Node = function Node(ownerDocument) {
-  var self = this;
-
-  this._childNodes = [];
+  this._childNodes = new core.NodeList();
   this._ownerDocument = ownerDocument;
   this._attributes = new core.AttrNodeMap(ownerDocument, this);
-
-  this._childrenList = new core.NodeList(this, function() {
-    return self._childNodes.filter(function(node) {
-      return node.tagName;
-    });
-  });
-
-  this._childNodesList = new core.NodeList(this, function() {
-    return self._childNodes;
-  });
-
+  this._nodeName = null;
+  this._childrenList = null;
   this._version = 0;
   this._nodeValue = null;
   this._parentNode = null;
@@ -328,18 +361,6 @@ core.Node.DOCUMENT_FRAGMENT_NODE      = DOCUMENT_FRAGMENT_NODE;
 core.Node.NOTATION_NODE               = NOTATION_NODE;
 
 core.Node.prototype = {
-  _attributes: null,
-  _childNodes: null,
-  _childNodesList: null,
-  _childrenList: null,
-  _version: 0,
-  _nodeValue: null,
-  _parentNode: null,
-  _ownerDocument: null,
-  _attributes: null,
-  _nodeName: null,
-  _readonly: false,
-  style: null,
   ELEMENT_NODE                : ELEMENT_NODE,
   ATTRIBUTE_NODE              : ATTRIBUTE_NODE,
   TEXT_NODE                   : TEXT_NODE,
@@ -354,6 +375,14 @@ core.Node.prototype = {
   NOTATION_NODE               : NOTATION_NODE,
 
   get children() {
+    if (!this._childrenList) {
+      var self = this;
+      this._childrenList = new core.NodeList(this, function() {
+        return self._childNodes.filter(function(node) {
+          return node.tagName;
+        });
+      });
+    }
     return this._childrenList;
   },
   get nodeValue() {
@@ -396,7 +425,7 @@ core.Node.prototype = {
   set lastChild() { throw new core.DOMException();},
 
   get childNodes() {
-    return this._childNodesList;
+    return this._childNodes;
   },
   set childNodes() { throw new core.DOMException();},
 
@@ -520,17 +549,15 @@ core.Node.prototype = {
       this._ownerDocument._version++;
     }
 
-    this._childrenList.update();
-    this._childNodesList.update();
+    if (this._childrenList) this._childrenList.update();
+    //this._childNodesList.update();
   },
 
   _attrModified: function(name, value, oldValue) {
     if (name == 'id' && this._attached) {
       var doc = this._ownerDocument;
-      var ids = doc._ids;
-      if (!ids) ids = doc._ids = {};
-      if (oldValue && ids[oldValue]) delete ids[oldValue];
-      if (value) ids[value] = this;
+      detachId(oldValue,this,doc);
+      attachId(value,this,doc);
     }
   },
 
@@ -544,24 +571,20 @@ core.Node.prototype = {
   _attach : function() {
     this._attached = true;
     if (this.id) {
-      if (this._ownerDocument._ids) {
-        this._ownerDocument._ids[this.id] = this;
-      }
+      attachId(this.id,this,this._ownerDocument);
     }
     for (var i=0;i<this._childNodes.length;i++) {
       if (this._childNodes[i]._attach) {
-       this._childNodes[i]._attach();
+        this._childNodes[i]._attach();
       }
     }
   },
   /* returns void */
   _detach : function() {
+    var i, elms;
     this._attached = false;
     if (this.id) {
-      if (this._ownerDocument._ids) {
-        this._ownerDocument._ids[this.id] = null;
-        delete this._ownerDocument._ids[this.id];
-      }
+      detachId(this.id,this,this._ownerDocument);
     }
     for (var i=0;i<this._childNodes.length;i++) {
       this._childNodes[i]._detach();
@@ -819,15 +842,14 @@ core.NamedNodeMap.prototype = {
       throw new core.DOMException(INUSE_ATTRIBUTE_ERR);
     }
 
-    var ret;
-    if (!this._nodes[arg.name] || this._nodes[arg.name] === null) {
+    var name = arg.name;
+    var ret = this._nodes[name];
+    if (!ret) {
       this.length++;
       ret = null;
-    } else {
-      ret = this._nodes[arg.name];
     }
     arg._specified = true;
-    this._nodes[arg.name] = arg;
+    this[name] = this._nodes[name] = arg;
     return ret;
   }, // raises: function(DOMException) {},
 
@@ -840,12 +862,12 @@ core.NamedNodeMap.prototype = {
     }
 
     if (!this._nodes.hasOwnProperty(name)) {
-        throw new core.DOMException(NOT_FOUND_ERR);
+      throw new core.DOMException(NOT_FOUND_ERR);
     }
 
     var prev = this._nodes[name] || null;
-    this._nodes[name] = null;
     delete this._nodes[name];
+    delete this[name];
 
     this.length--;
     return prev;
@@ -1508,7 +1530,7 @@ core.Attr.prototype =  {
     for (var i=0,len=this._childNodes.length;i<len;i++) {
       var child = this._childNodes[i];
       if (child.nodeType === ENTITY_REFERENCE_NODE) {
-        val += child.childNodes.toArray().reduce(function(prev, c) {
+        val += child.childNodes.reduce(function(prev, c) {
           return prev += (c.nodeValue || c);
         }, '');
       } else {
