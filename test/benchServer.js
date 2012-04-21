@@ -35,16 +35,20 @@ var config = {
     'citations':'0',
     'outputformat':'html',
     'memoryUsage':false,
-    'cslPath': '/home/fcheslack/pub_web/citeproc-node/csl',
+    'cslPath': __dirname + '/../csl',
     'testAllStyles': false,
     'customStylePath': ''
 };
 
 var argv = require('optimist')
     .usage('')
-    //.demand(['track', 'db'])
-    .default(config) //db to store tweets in
+    .default(config)
     .argv;
+
+if(argv.h){
+    console.log(config);
+    process.exit();
+}
 
 config = argv;
 
