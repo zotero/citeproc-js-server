@@ -1,0 +1,22 @@
+{
+  "author": "fcheslack",
+  "name": "citeproc",
+  "description": "Nodejs server and minor modifications to citeproc-js to run under node.js",
+  "version": "v0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/fcheslack/citeproc-node.git"
+  },
+  "directories": {
+    "lib": "./lib"
+  },
+  "engines": {
+    "node": ">=0.6.11"
+  },
+  "dependencies": {
+    "async": ">=0.1.18",
+    "jsdom": ">=0.2.0",
+    "optimist": ">=0.3.1"
+  },
+  "devDependencies": {}
+}
