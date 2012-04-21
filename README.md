@@ -3,6 +3,7 @@
 ## install
 
 > git clone --recursive git://github.com/fcheslack/citeproc-node.git
+
 > npm rebuild
 
 (rebuild step probably isn't necessary, but won't hurt)
