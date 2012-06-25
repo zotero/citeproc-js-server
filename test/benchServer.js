@@ -28,7 +28,7 @@ var config = {
     'maxconnections':1,
     'duration':3,
     'maxtotalrequests':1,
-    'showoutput':false,
+    'showoutput':true,
     'style':'chicago-author-date',
     'responseformat':'json',
     'bibliography':'1',
@@ -37,7 +37,8 @@ var config = {
     'memoryUsage':false,
     'cslPath': __dirname + '/../csl',
     'testAllStyles': false,
-    'customStylePath': ''
+    'customStylePath': '',
+    'linkwrap': 0
 };
 
 var argv = require('optimist')
@@ -238,6 +239,7 @@ var singleRequest = function(){
     if(config.bibliography == '0'){qstring += '&bibliography=0';}
     if(config.citations == '1'){qstring += '&citations=1';}
     if(config.outputformat != 'html'){qstring += '&outputformat=' + config.outputformat;}
+    if(config.linkwrap == '1'){qstring += '&linkwrap=1';}
     
     request = localCiteConn.request('POST', '/?' + qstring,
         {'host': targetHost});
@@ -267,7 +269,7 @@ var singleRequest = function(){
                 'body':this.body,
                 'requestTime': timeElapsed
             });
-            if(config.showOutput){
+            if(config.showoutput){
                 console.log(this.body);
             }
         });
