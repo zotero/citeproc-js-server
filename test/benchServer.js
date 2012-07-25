@@ -38,7 +38,8 @@ var config = {
     'cslPath': __dirname + '/../csl',
     'testAllStyles': false,
     'customStylePath': '',
-    'linkwrap': 0
+    'linkwrap': 0,
+    'locale': ''
 };
 
 var argv = require('optimist')
@@ -151,6 +152,7 @@ var outputStats = function(){
     console.log('maxTime: ' + maxTime);
     console.log('minTime: ' + minTime);
     console.log('total Benchmark Time: ' + (Date.now() - benchStart));
+    console.log('curConnections still remaining: ' + curConnections);
     console.log('==========================');
     console.log('Passed Styles:');
     for(i=0; i<passedStyles.length; i++){
@@ -240,6 +242,7 @@ var singleRequest = function(){
     if(config.citations == '1'){qstring += '&citations=1';}
     if(config.outputformat != 'html'){qstring += '&outputformat=' + config.outputformat;}
     if(config.linkwrap == '1'){qstring += '&linkwrap=1';}
+    if(config.locale){qstring += '&locale=' + config.locale;}
     
     request = localCiteConn.request('POST', '/?' + qstring,
         {'host': targetHost});
