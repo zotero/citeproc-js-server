@@ -5,6 +5,10 @@
 To run this software, you will need Node.js installed.  It is known to work
 with version 0.10.9.  Earlier versions might work.
 
+In addition, these Node modules might or might not need to be installed:
+
+- npmlog
+
 
 ## Setting up a standalone citeproc-node server
 
@@ -152,13 +156,21 @@ Run a test with all independent styles in the csl directory:
 node ./test/benchServer.js --duration=3000 --maxtotalrequests=1000 --testAllStyles=true
 ```
 
-## citeproc-js
+## Included libraries
+
+### citeproc-js
 
 This software includes the bundled JavaScript library from
 [citeproc-js](https://bitbucket.org/fbennett/citeproc-js), as the module
 *lib/citeprocmodule.js*.  To see the version number of that library, check
 in that module for "PROCESSOR_VERSION".  As of the time of this writing,
 the version used is 1.0.517.
+
+### csl_nodejs_jsdom.js
+
+This module, in the *lib* directory, seems to originally be from
+[here](https://github.com/citation-style-editor/csl-editor/blob/master/exampleCitationsGenerator/csl_nodejs_jsdom.js)
+
 
 ## Logging
 

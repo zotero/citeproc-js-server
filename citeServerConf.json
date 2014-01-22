@@ -2,10 +2,8 @@
     "logLevel" : "verbose",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
-    "citeprocmodulePath" : "./citeprocmodule",
     "cslFetcherPath" : "./cslFetcher",
-    "logFile" : "./citeServerLog.log",
     "engineCacheSize" : 20,
-    "listenport" : 8085
+    "port" : 8085
 }
 
