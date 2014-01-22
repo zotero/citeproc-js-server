@@ -152,6 +152,28 @@ Run a test with all independent styles in the csl directory:
 node ./test/benchServer.js --duration=3000 --maxtotalrequests=1000 --testAllStyles=true
 ```
 
+## citeproc-js
 
+This software includes the bundled JavaScript library from
+[citeproc-js](https://bitbucket.org/fbennett/citeproc-js), as the module
+*lib/citeprocmodule.js*.  To see the version number of that library, check
+in that module for "PROCESSOR_VERSION".  As of the time of this writing,
+the version used is 1.0.517.
 
+## Logging
 
+We're using npmlog, which has these levels defined:
+
+- silly   -Infinity
+- verbose 1000
+- info    2000
+- http    3000
+- warn    4000
+- error   5000
+- silent  Infinity
+
+To create a log message at a particular level, just use, for example,
+
+```javascript
+log.warn("Uh-oh!");
+```

@@ -1,8 +1,5 @@
 {
-    "debugType" : "file", 
-    "debugLog":true,
-    "debugLogPath" : "./citeServerLog",
-    "debugPrintLevel" : 5,
+    "logLevel" : "verbose",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
     "citeprocmodulePath" : "./citeprocmodule",
