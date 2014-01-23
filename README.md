@@ -43,7 +43,7 @@ git clone https://github.com/citation-style-language/locales.git csl-locales
 Start the server:
 
 ```
-node ./lib/citeServer.js
+node lib/citeServer.js
 ```
 
 If all is well, you will see:
@@ -216,3 +216,6 @@ The POST data JSON object can have these members:
 * items - either an array or a hash of items
 * itemIDs - an array of identifiers of those items to convert.  If this is not
   given, the default is to convert all of the items.
+* citationClusters
+* styleXml - a CSL style to use
+
