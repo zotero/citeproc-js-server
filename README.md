@@ -214,4 +214,5 @@ The following query string parameters are recognized:
 The POST data JSON object can have these members:
 
 * items - either an array or a hash of items
-
+* itemIDs - an array of identifiers of those items to convert.  If this is not
+  given, the default is to convert all of the items.
