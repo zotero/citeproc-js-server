@@ -169,7 +169,7 @@ the version used is 1.0.517.
 ### csl_nodejs_jsdom.js
 
 This module, in the *lib* directory, seems to originally be from
-[here](https://github.com/citation-style-editor/csl-editor/blob/master/exampleCitationsGenerator/csl_nodejs_jsdom.js)
+[here](https://github.com/citation-style-editor/csl-editor/blob/master/exampleCitationsGenerator/csl_nodejs_jsdom.js).
 
 
 ## Logging
@@ -189,3 +189,29 @@ To create a log message at a particular level, just use, for example,
 ```javascript
 log.warn("Uh-oh!");
 ```
+
+## Invoking the service
+
+The service responds to HTTP `OPTIONS` or `POST` requests only.
+
+When sending a request, various options should be set in the query string of the URL, and
+the CSL-JSON data should be sent in the content body.
+
+The following query string parameters are recognized:
+
+* responseformat - One of html, json, ?more.  Default is json.
+* bibliography - Default is 1.
+* style - Default is 'chicago-author-date'
+* locale - Default is "en-US"
+* citations - Default is 0.
+* outputformat - Default is html.
+* memoryUsage - If this is 1, the server will respond with a report of memory
+  usage (and nothing else).  Default is 0.
+* linkwrap - Default is 0
+* clearCache - If this 1, then the server will clear any cached style engines, and
+  reread the CSL styles.  This can only be sent from the localhost.  Default is 0
+
+The POST data JSON object can have these members:
+
+* items - either an array or a hash of items
+
