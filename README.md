@@ -201,7 +201,7 @@ The following query string parameters are recognized:
 
 * responseformat - One of html, json, ?more.  Default is json.
 * bibliography - Default is 1.
-* style - Default is 'chicago-author-date'
+* style - This is a URL or a name of a CSL style.  Default is 'chicago-author-date'.
 * locale - Default is "en-US"
 * citations - Default is 0.
 * outputformat - Default is html.
