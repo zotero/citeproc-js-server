@@ -1,9 +1,9 @@
 {
-    "logLevel" : "silly",
+    "port" : 8085,
+    "logLevel" : "info",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
     "cslFetcherPath" : "./cslFetcher",
-    "engineCacheSize" : 20,
-    "port" : 8085
+    "engineCacheSize" : 20
 }
 

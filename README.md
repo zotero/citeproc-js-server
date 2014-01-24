@@ -49,8 +49,7 @@ node lib/citeServer.js
 If all is well, you will see:
 
 ```
-no debugLog
-Server running at http://127.0.0.1:8085/
+info Server running at http://127.0.0.1:8085
 ```
 
 However, you might see, instead, the following error:
@@ -106,41 +105,13 @@ You should see a response similar to this:
     Yeast Research</i> 9.8 (2009): 1123–1136. Print.</div>
   <div class="csl-entry"><i>Beck V. Beck</i>. Vol. 1999. 1999. Print.</div>
   <div class="csl-entry">---. Vol. 733. 1999. Print.</div>
-  <div class="csl-entry">Bennett, Frank G., Jr. “Getting Property Right: ‘Informal’ Mortgages in
-    the Japanese Courts.” <i>Pacific Rim Law &#38; Policy Journal</i> 18 (2009): 463–509.
-    Print.</div>
-  <div class="csl-entry"><i>British Columbia Elec. Ry. V. Loach</i>. Vol. 1916. 1915. Print.</div>
-  <div class="csl-entry"><i>Clayton Act</i>. 1914. Print.</div>
-  <div class="csl-entry">---. Vol. 38. 1914. Print.</div>
-  <div class="csl-entry"><i>Donoghue V. Stevenson</i>. Vol. 1932. 1932. Print.</div>
-  <div class="csl-entry">D’Arcus, Bruce. <i>Boundaries of Dissent: Protest and State Power in the
-    Media Age</i>. New York: Routledge, 2006. Print.</div>
-  <div class="csl-entry"><i>FTC Credit Practices Rule</i>. Vol. 16. 1999. Print.</div>
-  <div class="csl-entry">Malone, Kemp. <i>Chapters on Chaucer</i>. Baltimore: Johns Hopkins
-    Press, 1951. Print.</div>
-  <div class="csl-entry">Malone, Nolan J., U.S. Bureau of the Census. <i>Evaluating Components of
-    International Migration: Consistency of 2000 Nativity Data</i>. New York: Routledge, 2001.
-    Print.</div>
-  <div class="csl-entry"><i>People V. Taylor</i>. Vol. 73. 1989. Print.</div>
-  <div class="csl-entry">---. Vol. 541. 1989. Print.</div>
-  <div class="csl-entry">---. Vol. 543. 1989. Print.</div>
-  <div class="csl-entry">Razlogova, Elena. “Radio and Astonishment: The Emergence of Radio Sound,
-    1920-1926.” Society for Cinema Studies Annual Meeting. 2002.</div>
-  <div class="csl-entry">---. “True Crime Radio and Listener Disenchantment with Network
-    Broadcasting, 1935-1946.” <i>American Quarterly</i> 58 (2006): 137–158. Print.</div>
-  <div class="csl-entry">Razlogova, Elena, and Lisa Lynch. “The Guantanamobile Project.”
-    <i>Vectors</i> 1 (2005): n. pag. Print.</div>
-  <div class="csl-entry">Zelle, Rintze M. et al. “Key Process Conditions for Production of
-    C<sub>4</sub> Dicarboxylic Acids in Bioreactor Batch Cultures of an Engineered
-    <i>Saccharomyces Cerevisiae</i> Strain.” <i>Applied and Environmental Microbiology</i> 76.3
-    (2010): 744–750.</div>
-  <div class="csl-entry">梶田将司 et al. “高等教育機関における次世代教育学習支援プラットフォームの構築に向けて.”
-    <i>日本教育工学会論文誌</i> 31.3 (2007): 297–305. Print.</div>
-  <div class="csl-entry"><i>民法</i>. Print.</div>
+  ...
 </div>
 ```
 
+## Configuration
 
+Configuration parameters are specified in the *citeServerConf.json* file.
 
 ## Running the tests
 
@@ -156,7 +127,16 @@ Run a test with all independent styles in the csl directory:
 node ./test/benchServer.js --duration=3000 --maxtotalrequests=1000 --testAllStyles=true
 ```
 
+
 ## Included libraries
+
+## csl
+
+Included as a Git submodule.
+
+## csl-locales
+
+Included as a Git submodule.
 
 ### citeproc-js
 
@@ -184,13 +164,16 @@ We're using npmlog, which has these levels defined:
 - error   5000
 - silent  Infinity
 
-To create a log message at a particular level, just use, for example,
+The level at which the server runs is specified in the config file, as the
+`logLevel` parameter.
+
+In the code, to create a log message at a particular level, for example,
 
 ```javascript
 log.warn("Uh-oh!");
 ```
 
-## Invoking the service
+## Using the web service
 
 The service responds to HTTP `OPTIONS` or `POST` requests only.
 
