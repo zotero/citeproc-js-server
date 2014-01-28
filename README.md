@@ -130,11 +130,11 @@ node ./test/benchServer.js --duration=3000 --maxtotalrequests=1000 --testAllStyl
 
 ## Included libraries
 
-## csl
+### csl
 
 Included as a Git submodule.
 
-## csl-locales
+### csl-locales
 
 Included as a Git submodule.
 
@@ -182,17 +182,17 @@ the CSL-JSON data should be sent in the content body.
 
 The following query string parameters are recognized:
 
-* responseformat - One of html, json, ?more.  Default is json.
-* bibliography - Default is 1.
-* style - This is a URL or a name of a CSL style.  Default is 'chicago-author-date'.
-* locale - Default is "en-US"
-* citations - Default is 0.
-* outputformat - Default is html.
-* memoryUsage - If this is 1, the server will respond with a report of memory
-  usage (and nothing else).  Default is 0.
-* linkwrap - Default is 0
-* clearCache - If this 1, then the server will clear any cached style engines, and
-  reread the CSL styles.  This can only be sent from the localhost.  Default is 0
+* responseformat - One of `html`, `json` (others?).  Default is `json`.
+* bibliography - Default is `1`.
+* style - This is a URL or a name of a CSL style.  Default is `chicago-author-date`.
+* locale - Default is `en-US`
+* citations - Default is `0`.
+* outputformat - Default is `html`.
+* memoryUsage - If this is `1`, the server will respond with a report of memory
+  usage (and nothing else).  Default is `0`.
+* linkwrap - Default is `0`
+* clearCache - If this `1`, then the server will clear any cached style engines, and
+  reread the CSL styles.  This can only be sent from the localhost.  Default is `0`.
 
 The POST data JSON object can have these members:
 
