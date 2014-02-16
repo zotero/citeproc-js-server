@@ -1,14 +1,9 @@
 {
-    "debugType" : "file", 
-    "debugLog":true,
-    "debugLogPath" : "./citeServerLog",
-    "debugPrintLevel" : 5,
+    "port" : 8085,
+    "logLevel" : "info",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
-    "citeprocmodulePath" : "./citeprocmodule",
     "cslFetcherPath" : "./cslFetcher",
-    "logFile" : "./citeServerLog.log",
-    "engineCacheSize" : 20,
-    "listenport" : 8085
+    "engineCacheSize" : 20
 }
 
