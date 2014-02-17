@@ -1,6 +1,6 @@
 {
     "port" : 8085,
-    "logLevel" : "info",
+    "logLevel" : "verbose",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
     "cslFetcherPath" : "./cslFetcher",
