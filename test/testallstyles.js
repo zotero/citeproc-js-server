@@ -35,7 +35,7 @@ log.level = 'verbose';
 //process command line args for config
 var config = {
     'maxconnections':1,
-    'duration':20,
+    'duration':3,
     'maxtotalrequests':1,
     'showoutput':true,
     'style':'chicago-author-date',
@@ -43,9 +43,8 @@ var config = {
     'bibliography':'1',
     'citations':'0',
     'outputformat':'html',
-    'memoryUsage':false,
     'cslPath': __dirname + '/../csl',
-    'customStylePath': '',
+    'testAllStyles': true,
     'linkwrap': 0,
     'locale': ''
 };
@@ -72,11 +71,7 @@ if(argv.h){
 }
 
 config = argv;
-log.info("", config);
 
-if(argv.customStylePath != '') {
-    config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
-}
 
 var stylesList = fs.readdirSync(config.cslPath);
 stylesList = stylesList.sort();
@@ -102,47 +97,11 @@ for(var i=0; i < bib2.length; i++){
 }
 //bib1post.citationClusters = loadcites.citations1;
 //bib2post.citationClusters = loadcites.citations1;
-var styleStrings = ['apsa',
-                    'apa',
-                    'asa',
-                    'chicago-author-date',
-                    'chicago-fullnote-bibliography',
-                    'chicago-note-bibliography',
-                    'chicago-note',
-                    'harvard1',
-                    'ieee',
-                    'mhra',
-                    'mhra_note_without_bibliography',
-                    'mla',
-                    'nlm',
-                    'nature',
-                    'vancouver'
-                    ];
 
 if(config.hasOwnProperty('customStylePath')){
     bib2post.styleXml = config.customStyleXml;
 }
 reqBody = JSON.stringify(bib2post);
-//log.info('postObj:');
-//log.info(bib2post);
-//log.info(bib1post);
-//fs.writeFileSync('./prettyRequestBodyJson', util.inspect(bib1post, false, null), 'utf8');
-//log.info("\n\n");
-
-var randReqCombo = function(){
-    var post = {'items':{}};
-    for(var i=0; i < biball.length; i++){
-        if(Math.random() < 0.3){
-            post.items[biball[i]] = citeData[ biball[i] ];
-        }
-    }
-    return post;
-};
-
-var randStyle = function(){
-    var randomnumber=Math.floor(Math.random()*(styleStrings.length));
-    return styleStrings[randomnumber];
-};
 
 var continueRequests = true;
 var timeout = config.duration * 1000;
@@ -179,11 +138,12 @@ var outputStats = function(){
     
     log.info('==========================');
     log.info('Failed Styles:');
-    log.info('failed ', errorStyles);
-    
+    for(i=0; i<errorStyles.length; i++){
+        log.info(errorStyles[i]);
+    }
     setTimeout(function(){
         process.exit();
-    }, 1000);
+    }, 2000);
 };
 
 //set global timeout for finishing benchmarks
@@ -222,29 +182,26 @@ var singleRequest = function(){
     log.info("making new request");
     var request;
     
-    if(config.memoryUsage){
-        request = localCiteConn.request('POST', '/?memoryUsage=1', {'host':targetHost});
-        request.on('response', function (response) {
-            log.info("STATUS: " + response.statusCode);
-            response.setEncoding('utf8');
-            response.on('data', function (chunk) {
-                log.info(chunk);
-            });
-        });
-        request.write(reqBody, 'utf8');
-        request.end();
-        return;
-    }
-//    log.info(config);
     var useStyleString = config.style;
-    if(config.style == 'rand'){
-        useStyleString = randStyle();
+    //find the next filename in the dir list that is a csl file
+    while(true){
+        if(stylesListCounter >= stylesList.length){
+            continueRequests = false;
+            return;
+        }
+        useStyleString = stylesList[stylesListCounter];
+        stylesListCounter++;
+        if(useStyleString && useStyleString.slice(-4) == '.csl'){
+            useStyleString = useStyleString.replace('.csl', '');
+            log.info("counter: " + stylesListCounter + ' - ' + useStyleString);
+            break;
+        }
     }
     
-    config.style = useStyleString;
     var qstringObject = _.extend({},
             defaultQueryObject,
-            _.pick(config, 'style', 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'));
+            _.pick(config, 'style', 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'),
+            {'style': useStyleString});
     var qstring = querystring.stringify(qstringObject);
     
     request = localCiteConn.request('POST', '/?' + qstring,
@@ -281,7 +238,7 @@ var singleRequest = function(){
             }
             log.info("curConnections: " + curConnections);
             log.info("continueRequests: " + continueRequests);
-            if((!continueRequests) && (curConnections == 0)){
+            if(!continueRequests && curConnections == 0){
                 outputStats();
             }
         });
