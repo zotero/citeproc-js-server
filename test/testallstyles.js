@@ -34,9 +34,9 @@ log.level = 'verbose';
 
 //process command line args for config
 var config = {
-    'maxconnections':1,
-    'duration':3,
-    'maxtotalrequests':1,
+    'maxconnections':2,
+    'duration':3000,
+    'maxtotalrequests':1000,
     'showoutput':true,
     'style':'chicago-author-date',
     'responseformat':'json',
@@ -159,7 +159,6 @@ setTimeout(function(){
 var curConnections = 0;
 var connectionResults = [];
 var http = require('http');
-var localCiteConn = http.createClient(8085, targetHost);
 
 //make multiple parallel requests up to configured maxconnections
 var makeRequests = function(){
@@ -185,7 +184,7 @@ var singleRequest = function(){
     var useStyleString = config.style;
     //find the next filename in the dir list that is a csl file
     while(true){
-        if(stylesListCounter >= stylesList.length){
+        if(stylesListCounter >= stylesList.length -1){
             continueRequests = false;
             return;
         }
@@ -193,7 +192,7 @@ var singleRequest = function(){
         stylesListCounter++;
         if(useStyleString && useStyleString.slice(-4) == '.csl'){
             useStyleString = useStyleString.replace('.csl', '');
-            log.info("counter: " + stylesListCounter + ' - ' + useStyleString);
+            log.info("counter: " + stylesListCounter + ' / ' + stylesList.length + ' - ' + useStyleString);
             break;
         }
     }
@@ -204,8 +203,12 @@ var singleRequest = function(){
             {'style': useStyleString});
     var qstring = querystring.stringify(qstringObject);
     
-    request = localCiteConn.request('POST', '/?' + qstring,
-        {'host': targetHost});
+    request = http.request({
+        'hostname': targetHost,
+        'port': 8085,
+        'method': 'POST',
+        'path': '/?' + qstring
+    });
     request.startDate = Date.now();
     request.styleUsed = useStyleString;
     request.on('response', function (response) {
@@ -238,7 +241,7 @@ var singleRequest = function(){
             }
             log.info("curConnections: " + curConnections);
             log.info("continueRequests: " + continueRequests);
-            if(!continueRequests && curConnections == 0){
+            if(!continueRequests && curConnections < 3){
                 outputStats();
             }
         });

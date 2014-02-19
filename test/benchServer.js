@@ -47,7 +47,7 @@ var config = {
     'cslPath': __dirname + '/../csl',
     'customStylePath': '',
     'linkwrap': 0,
-    'locale': ''
+    'locale': 'en-US'
 };
 
 var defaultQueryObject = {
@@ -57,7 +57,7 @@ var defaultQueryObject = {
     'citations':'0',
     'outputformat':'html',
     'linkwrap': 0,
-    'locale': ''
+    'locale': 'en-US'
 };
 
 
@@ -199,7 +199,6 @@ setTimeout(function(){
 var curConnections = 0;
 var connectionResults = [];
 var http = require('http');
-var localCiteConn = http.createClient(8085, targetHost);
 
 //make multiple parallel requests up to configured maxconnections
 var makeRequests = function(){
@@ -223,7 +222,12 @@ var singleRequest = function(){
     var request;
     
     if(config.memoryUsage){
-        request = localCiteConn.request('POST', '/?memoryUsage=1', {'host':targetHost});
+        request = http.request({
+            'hostname': targetHost,
+            'port': 8085,
+            'method': 'POST',
+            'path': '/?memoryUsage=1'
+        });
         request.on('response', function (response) {
             log.info("STATUS: " + response.statusCode);
             response.setEncoding('utf8');
@@ -247,8 +251,12 @@ var singleRequest = function(){
             _.pick(config, 'style', 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'));
     var qstring = querystring.stringify(qstringObject);
     
-    request = localCiteConn.request('POST', '/?' + qstring,
-        {'host': targetHost});
+    request = http.request({
+        'hostname': targetHost,
+        'port': 8085,
+        'method': 'POST',
+        'path': '/?' + qstring
+    });
     request.startDate = Date.now();
     request.styleUsed = useStyleString;
     request.on('response', function (response) {
