@@ -1,23 +1,24 @@
 {
   "author": "fcheslack",
   "name": "citeproc",
-  "description": "Nodejs server and minor modifications to citeproc-js to run under node.js",
-  "version": "v0.0.1",
+  "description": "Node.js server utilizing citeproc-js to format citations",
+  "version": "v0.0.2",
   "repository": {
     "type": "git",
-    "url": "git://github.com/fcheslack/citeproc-node.git"
+    "url": "git://github.com/zotero/citeproc-node.git"
   },
   "directories": {
     "lib": "./lib"
   },
   "engines": {
-    "node": ">=0.6.11"
+    "node": ">=0.10.25"
   },
   "dependencies": {
-    "async": ">=0.1.18",
     "jsdom": ">=0.2.0",
     "optimist": ">=0.3.1",
-    "underscore": ">=1.3.3"
+    "underscore": ">=1.3.3",
+    "npmlog": ">=0.0.6",
+    "bluebird": ">=1.0.5"
   },
   "devDependencies": {}
 }
