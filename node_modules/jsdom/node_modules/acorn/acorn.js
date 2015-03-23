@@ -28,7 +28,7 @@
 })(this, function(exports) {
   "use strict";
 
-  exports.version = "0.11.0";
+  exports.version = "0.12.0";
 
   // The main exported interface (under `self.acorn` when in the
   // browser) is a `parse` function that takes a code string and
@@ -74,6 +74,9 @@
     // When enabled, import/export statements are not constrained to
     // appearing at the top of the program.
     allowImportExportEverywhere: false,
+    // When enabled, hashbang directive in the beginning of file
+    // is allowed and treated as a line comment.
+    allowHashBang: false,
     // When `locations` is on, `loc` properties holding objects with
     // `start` and `end` properties in `{line, column}` form (with
     // line being 1-based and column 0-based) will be attached to the
@@ -197,9 +200,6 @@
     if (options.locations) {
       this.loc = new SourceLocation();
       this.loc.end = tokEndLoc;
-      // TODO: remove in next major release
-      this.startLoc = tokStartLoc;
-      this.endLoc = tokEndLoc;
     }
     if (options.ranges)
       this.range = [tokStart, tokEnd];
@@ -220,12 +220,12 @@
     initTokenState();
     skipSpace();
 
-    function getToken(forceRegexp) {
+    function getToken() {
       lastEnd = tokEnd;
-      readToken(forceRegexp);
+      readToken();
       return new Token();
     }
-    getToken.jumpTo = function(pos, reAllowed) {
+    getToken.jumpTo = function(pos, exprAllowed) {
       tokPos = pos;
       if (options.locations) {
         tokCurLine = 1;
@@ -236,12 +236,23 @@
           tokLineStart = match.index + match[0].length;
         }
       }
-      tokRegexpAllowed = reAllowed;
+      tokExprAllowed = !!exprAllowed;
       skipSpace();
     };
-    getToken.noRegexp = function() {
-      tokRegexpAllowed = false;
-    };
+    getToken.current = function() { return new Token(); };
+    if (typeof Symbol !== 'undefined') {
+      getToken[Symbol.iterator] = function () {
+        return {
+          next: function () {
+            var token = getToken();
+            return {
+              done: token.type === _eof,
+              value: token
+            };
+          }
+        };
+      };
+    }
     getToken.options = options;
     return getToken;
   };
@@ -274,12 +285,13 @@
 
   // Internal state for the tokenizer. To distinguish between division
   // operators and regular expressions, it remembers whether the last
-  // token was one that is allowed to be followed by an expression.
-  // (If it is, a slash is probably a regexp, if it isn't it's a
-  // division operator. See the `parseStatement` function for a
-  // caveat.)
+  // token was one that is allowed to be followed by an expression. In
+  // some cases, notably after ')' or '}' tokens, the situation
+  // depends on the context before the matching opening bracket, so
+  // tokContext keeps a stack of information about current bracketed
+  // forms.
 
-  var tokRegexpAllowed;
+  var tokContext, tokExprAllowed;
 
   // When `options.locations` is true, these are used to keep
   // track of the current line, and know when a new line has been
@@ -300,22 +312,10 @@
 
   var inFunction, inGenerator, labels, strict;
 
-  // This counter is used for checking that arrow expressions did
-  // not contain nested parentheses in argument list.
-
-  var metParenL;
-
-  // This is used by the tokenizer to track the template strings it is
-  // inside, and count the amount of open braces seen inside them, to
-  // be able to switch back to a template token when the } to match ${
-  // is encountered. It will hold an array of integers.
-
-  var templates;
-
   function initParserState() {
     lastStart = lastEnd = tokPos;
     if (options.locations) lastEndLoc = curPosition();
-    inFunction = inGenerator = strict = false;
+    inFunction = inGenerator = false;
     labels = [];
     skipSpace();
     readToken();
@@ -413,8 +413,9 @@
   var _braceR = {type: "}"}, _parenL = {type: "(", beforeExpr: true}, _parenR = {type: ")"};
   var _comma = {type: ",", beforeExpr: true}, _semi = {type: ";", beforeExpr: true};
   var _colon = {type: ":", beforeExpr: true}, _dot = {type: "."}, _question = {type: "?", beforeExpr: true};
-  var _arrow = {type: "=>", beforeExpr: true}, _template = {type: "template"}, _templateContinued = {type: "templateContinued"};
-  var _ellipsis = {type: "...", prefix: true, beforeExpr: true};
+  var _arrow = {type: "=>", beforeExpr: true}, _template = {type: "template"};
+  var _ellipsis = {type: "...", beforeExpr: true};
+  var _backQuote = {type: "`"}, _dollarBraceL = {type: "${", beforeExpr: true};
 
   // Operators. These carry several kinds of properties to help the
   // parser use them properly (the presence of these properties is
@@ -456,8 +457,8 @@
                       parenL: _parenL, parenR: _parenR, comma: _comma, semi: _semi, colon: _colon,
                       dot: _dot, ellipsis: _ellipsis, question: _question, slash: _slash, eq: _eq,
                       name: _name, eof: _eof, num: _num, regexp: _regexp, string: _string,
-                      arrow: _arrow, template: _template, templateContinued: _templateContinued, star: _star,
-                      assign: _assign};
+                      arrow: _arrow, template: _template, star: _star, assign: _assign,
+                      backQuote: _backQuote, dollarBraceL: _dollarBraceL};
   for (var kw in keywordTypes) exports.tokTypes["_" + kw] = keywordTypes[kw];
 
   // This is a trick taken from Esprima. It turns out that, on
@@ -595,7 +596,7 @@
 
   Position.prototype.offset = function(n) {
     return new Position(this.line, this.column + n);
-  }
+  };
 
   function curPosition() {
     return new Position(tokCurLine, tokPos - tokLineStart);
@@ -612,25 +613,95 @@
       tokCurLine = 1;
       tokPos = tokLineStart = 0;
     }
-    tokRegexpAllowed = true;
-    metParenL = 0;
-    templates = [];
+    tokType = _eof;
+    tokContext = [b_stat];
+    tokExprAllowed = true;
+    strict = false;
+    if (tokPos === 0 && options.allowHashBang && input.slice(0, 2) === '#!') {
+      skipLineComment(2);
+    }
+  }
+
+  // The algorithm used to determine whether a regexp can appear at a
+  // given point in the program is loosely based on sweet.js' approach.
+  // See https://github.com/mozilla/sweet.js/wiki/design
+
+  var b_stat = {token: "{", isExpr: false}, b_expr = {token: "{", isExpr: true}, b_tmpl = {token: "${", isExpr: true};
+  var p_stat = {token: "(", isExpr: false}, p_expr = {token: "(", isExpr: true};
+  var q_tmpl = {token: "`", isExpr: true}, f_expr = {token: "function", isExpr: true};
+
+  function curTokContext() {
+    return tokContext[tokContext.length - 1];
+  }
+
+  function braceIsBlock(prevType) {
+    var parent;
+    if (prevType === _colon && (parent = curTokContext()).token == "{")
+      return !parent.isExpr;
+    if (prevType === _return)
+      return newline.test(input.slice(lastEnd, tokStart));
+    if (prevType === _else || prevType === _semi || prevType === _eof)
+      return true;
+    if (prevType == _braceL)
+      return curTokContext() === b_stat;
+    return !tokExprAllowed;
   }
 
   // Called at the end of every token. Sets `tokEnd`, `tokVal`, and
-  // `tokRegexpAllowed`, and skips the space after the token, so that
-  // the next one's `tokStart` will point at the right position.
+  // maintains `tokContext` and `tokExprAllowed`, and skips the space
+  // after the token, so that the next one's `tokStart` will point at
+  // the right position.
 
-  function finishToken(type, val, shouldSkipSpace) {
+  function finishToken(type, val) {
     tokEnd = tokPos;
     if (options.locations) tokEndLoc = curPosition();
+    var prevType = tokType, preserveSpace = false;
     tokType = type;
-    if (shouldSkipSpace !== false) skipSpace();
     tokVal = val;
-    tokRegexpAllowed = type.beforeExpr;
-    if (options.onToken) {
-      options.onToken(new Token());
+
+    // Update context info
+    if (type === _parenR || type === _braceR) {
+      var out = tokContext.pop();
+      if (out === b_tmpl) {
+        preserveSpace = true;
+      } else if (out === b_stat && curTokContext() === f_expr) {
+        tokContext.pop();
+        tokExprAllowed = false;
+      } else {
+        tokExprAllowed = !(out && out.isExpr);
+      }
+    } else if (type === _braceL) {
+      tokContext.push(braceIsBlock(prevType) ? b_stat : b_expr);
+      tokExprAllowed = true;
+    } else if (type === _dollarBraceL) {
+      tokContext.push(b_tmpl);
+      tokExprAllowed = true;
+    } else if (type == _parenL) {
+      var statementParens = prevType === _if || prevType === _for || prevType === _with || prevType === _while;
+      tokContext.push(statementParens ? p_stat : p_expr);
+      tokExprAllowed = true;
+    } else if (type == _incDec) {
+      // tokExprAllowed stays unchanged
+    } else if (type.keyword && prevType == _dot) {
+      tokExprAllowed = false;
+    } else if (type == _function) {
+      if (curTokContext() !== b_stat) {
+        tokContext.push(f_expr);
+      }
+      tokExprAllowed = false;
+    } else if (type === _backQuote) {
+      if (curTokContext() === q_tmpl) {
+        tokContext.pop();
+      } else {
+        tokContext.push(q_tmpl);
+        preserveSpace = true;
+      }
+      tokExprAllowed = false;
+    } else {
+      tokExprAllowed = type.beforeExpr;
     }
+
+    if (!preserveSpace) skipSpace();
   }
 
   function skipBlockComment() {
@@ -716,9 +787,6 @@
   //
   // All in the name of speed.
   //
-  // The `forceRegexp` parameter is used in the one case where the
-  // `tokRegexpAllowed` trick does not work. See `parseStatement`.
-
   function readToken_dot() {
     var next = input.charCodeAt(tokPos + 1);
     if (next >= 48 && next <= 57) return readNumber(true);
@@ -734,7 +802,7 @@
 
   function readToken_slash() { // '/'
     var next = input.charCodeAt(tokPos + 1);
-    if (tokRegexpAllowed) {++tokPos; return readRegexp();}
+    if (tokExprAllowed) {++tokPos; return readRegexp();}
     if (next === 61) return finishOp(_assign, 2);
     return finishOp(_slash, 1);
   }
@@ -818,23 +886,17 @@
     case 44: ++tokPos; return finishToken(_comma);
     case 91: ++tokPos; return finishToken(_bracketL);
     case 93: ++tokPos; return finishToken(_bracketR);
-    case 123:
-      ++tokPos;
-      if (templates.length) ++templates[templates.length - 1];
-      return finishToken(_braceL);
-    case 125:
-      ++tokPos;
-      if (templates.length && --templates[templates.length - 1] === 0)
-        return readTemplateString(_templateContinued);
-      else
-        return finishToken(_braceR);
+    case 123: ++tokPos; return finishToken(_braceL);
+    case 125: ++tokPos; return finishToken(_braceR);
     case 58: ++tokPos; return finishToken(_colon);
     case 63: ++tokPos; return finishToken(_question);
 
     case 96: // '`'
       if (options.ecmaVersion >= 6) {
         ++tokPos;
-        return readTemplateString(_template);
+        return finishToken(_backQuote);
+      } else {
+        return false;
       }
 
     case 48: // '0'
@@ -886,12 +948,14 @@
     return false;
   }
 
-  function readToken(forceRegexp) {
-    if (!forceRegexp) tokStart = tokPos;
-    else tokPos = tokStart + 1;
+  function readToken() {
+    tokStart = tokPos;
     if (options.locations) tokStartLoc = curPosition();
-    if (forceRegexp) return readRegexp();
     if (tokPos >= inputLen) return finishToken(_eof);
+
+    if (curTokContext() === q_tmpl) {
+      return readTmplToken();
+    }
 
     var code = input.charCodeAt(tokPos);
 
@@ -1056,55 +1120,64 @@
   }
 
   function readString(quote) {
-    ++tokPos;
-    var out = "";
+    var out = "", chunkStart = ++tokPos;
     for (;;) {
       if (tokPos >= inputLen) raise(tokStart, "Unterminated string constant");
       var ch = input.charCodeAt(tokPos);
-      if (ch === quote) {
-        ++tokPos;
-        return finishToken(_string, out);
-      }
+      if (ch === quote) break;
       if (ch === 92) { // '\'
+        out += input.slice(chunkStart, tokPos);
         out += readEscapedChar();
+        chunkStart = tokPos;
       } else {
+        if (isNewLine(ch)) raise(tokStart, "Unterminated string constant");
         ++tokPos;
-        if (newline.test(String.fromCharCode(ch))) {
-          raise(tokStart, "Unterminated string constant");
-        }
-        out += String.fromCharCode(ch); // '\'
       }
     }
+    out += input.slice(chunkStart, tokPos++);
+    return finishToken(_string, out);
   }
 
-  function readTemplateString(type) {
-    if (type == _templateContinued) templates.pop();
-    var out = "", start = tokPos;;
+  // Reads template string tokens.
+
+  function readTmplToken() {
+    var out = "", chunkStart = tokPos;
     for (;;) {
       if (tokPos >= inputLen) raise(tokStart, "Unterminated template");
-      var ch = input.charAt(tokPos);
-      if (ch === "`" || ch === "$" && input.charCodeAt(tokPos + 1) === 123) { // '`', '${'
-        var raw = input.slice(start, tokPos);
-        ++tokPos;
-        if (ch == "$") { ++tokPos; templates.push(1); }
-        return finishToken(type, {cooked: out, raw: raw});
-      }
-
-      if (ch === "\\") { // '\'
-        out += readEscapedChar();
-      } else {
-        ++tokPos;
-        if (newline.test(ch)) {
-          if (ch === "\r" && input.charCodeAt(tokPos) === 10) {
+      var ch = input.charCodeAt(tokPos);
+      if (ch === 96 || ch === 36 && input.charCodeAt(tokPos + 1) === 123) { // '`', '${'
+        if (tokPos === tokStart && tokType === _template) {
+          if (ch === 36) {
+            tokPos += 2;
+            return finishToken(_dollarBraceL);
+          } else {
             ++tokPos;
-            ch = "\n";
-          }
-          if (options.locations) {
-            ++tokCurLine;
-            tokLineStart = tokPos;
+            return finishToken(_backQuote);
           }
         }
-        out += ch;
+        out += input.slice(chunkStart, tokPos);
+        return finishToken(_template, out);
+      }
+      if (ch === 92) { // '\'
+        out += input.slice(chunkStart, tokPos);
+        out += readEscapedChar();
+        chunkStart = tokPos;
+      } else if (isNewLine(ch)) {
+        out += input.slice(chunkStart, tokPos);
+        ++tokPos;
+        if (ch === 13 && input.charCodeAt(tokPos) === 10) {
+          ++tokPos;
+          out += "\n";
+        } else {
+          out += String.fromCharCode(ch);
+        }
+        if (options.locations) {
+          ++tokCurLine;
+          tokLineStart = tokPos;
+        }
+        chunkStart = tokPos;
+      } else {
+        ++tokPos;
       }
     }
   }
@@ -1159,20 +1232,19 @@
   // Read an identifier, and return it as a string. Sets `containsEsc`
   // to whether the word contained a '\u' escape.
   //
-  // Only builds up the word character-by-character when it actually
-  // containeds an escape, as a micro-optimization.
+  // Incrementally adds only escaped chars, adding other chunks as-is
+  // as a micro-optimization.
 
   function readWord1() {
     containsEsc = false;
-    var word, first = true, start = tokPos;
-    for (;;) {
+    var word = "", first = true, chunkStart = tokPos;
+    while (tokPos < inputLen) {
       var ch = input.charCodeAt(tokPos);
       if (isIdentifierChar(ch)) {
-        if (containsEsc) word += input.charAt(tokPos);
         ++tokPos;
       } else if (ch === 92) { // "\"
-        if (!containsEsc) word = input.slice(start, tokPos);
         containsEsc = true;
+        word += input.slice(chunkStart, tokPos);
         if (input.charCodeAt(++tokPos) != 117) // "u"
           raise(tokPos, "Expecting Unicode escape sequence \\uXXXX");
         ++tokPos;
@@ -1182,12 +1254,13 @@
         if (!(first ? isIdentifierStart(esc) : isIdentifierChar(esc)))
           raise(tokPos - 4, "Invalid Unicode escape");
         word += escStr;
+        chunkStart = tokPos;
       } else {
         break;
       }
       first = false;
     }
-    return containsEsc ? word : input.slice(start, tokPos);
+    return word + input.slice(chunkStart, tokPos);
   }
 
   // Read an identifier or keyword token. Will check for reserved
@@ -1226,17 +1299,21 @@
   // Continue to the next token.
 
   function next() {
+    if (options.onToken)
+      options.onToken(new Token());
+
     lastStart = tokStart;
     lastEnd = tokEnd;
     lastEndLoc = tokEndLoc;
     readToken();
   }
 
-  // Enter strict mode. Re-reads the next token to please pedantic
-  // tests ("use strict"; 010; -- should fail).
+  // Enter strict mode. Re-reads the next number or string to
+  // please pedantic tests ("use strict"; 010; -- should fail).
 
   function setStrict(strct) {
     strict = strct;
+    if (tokType !== _num && tokType !== _string) return;
     tokPos = tokStart;
     if (options.locations) {
       while (tokPos < tokLineStart) {
@@ -1311,6 +1388,8 @@
     return node;
   }
 
+  // Finish node at given position
+
   function finishNodeAt(node, type, pos) {
     if (options.locations) { node.loc.end = pos[1]; pos = pos[0]; }
     node.type = type;
@@ -1337,6 +1416,24 @@
     } else {
       return false;
     }
+  }
+
+  // Tests whether parsed token is a contextual keyword.
+
+  function isContextual(name) {
+    return tokType === _name && tokVal === name;
+  }
+
+  // Consumes contextual keyword if possible.
+
+  function eatContextual(name) {
+    return tokVal === name && eat(_name);
+  }
+
+  // Asserts that following token is given contextual keyword.
+
+  function expectContextual(name) {
+    if (!eatContextual(name)) unexpected();
   }
 
   // Test whether a semicolon can be inserted at the current position.
@@ -1371,53 +1468,139 @@
   function has(obj, propName) {
     return Object.prototype.hasOwnProperty.call(obj, propName);
   }
+
   // Convert existing expression atom to assignable pattern
   // if possible.
 
-  function toAssignable(node, allowSpread, checkType) {
+  function toAssignable(node, isBinding) {
     if (options.ecmaVersion >= 6 && node) {
       switch (node.type) {
         case "Identifier":
-        case "MemberExpression":
+        case "ObjectPattern":
+        case "ArrayPattern":
+        case "AssignmentPattern":
           break;
 
         case "ObjectExpression":
           node.type = "ObjectPattern";
           for (var i = 0; i < node.properties.length; i++) {
             var prop = node.properties[i];
-            if (prop.kind !== "init") unexpected(prop.key.start);
-            toAssignable(prop.value, false, checkType);
+            if (prop.kind !== "init") raise(prop.key.start, "Object pattern can't contain getter or setter");
+            toAssignable(prop.value, isBinding);
           }
           break;
 
         case "ArrayExpression":
           node.type = "ArrayPattern";
-          for (var i = 0, lastI = node.elements.length - 1; i <= lastI; i++) {
-            toAssignable(node.elements[i], i === lastI, checkType);
+          toAssignableList(node.elements, isBinding);
+          break;
+
+        case "AssignmentExpression":
+          if (node.operator === "=") {
+            node.type = "AssignmentPattern";
+          } else {
+            raise(node.left.end, "Only '=' operator can be used for specifying default value.");
           }
           break;
 
-        case "SpreadElement":
-          if (allowSpread) {
-            toAssignable(node.argument, false, checkType);
-            checkSpreadAssign(node.argument);
-          } else {
-            unexpected(node.start);
-          }
-          break;
+        case "MemberExpression":
+          if (!isBinding) break;
 
         default:
-          if (checkType) unexpected(node.start);
+          raise(node.start, "Assigning to rvalue");
       }
     }
     return node;
   }
 
-  // Checks if node can be assignable spread argument.
+  // Convert list of expression atoms to binding list.
 
-  function checkSpreadAssign(node) {
-    if (node.type !== "Identifier" && node.type !== "ArrayPattern")
-      unexpected(node.start);
+  function toAssignableList(exprList, isBinding) {
+    if (exprList.length) {
+      for (var i = 0; i < exprList.length - 1; i++) {
+        toAssignable(exprList[i], isBinding);
+      }
+      var last = exprList[exprList.length - 1];
+      switch (last.type) {
+        case "RestElement":
+          break;
+        case "SpreadElement":
+          last.type = "RestElement";
+          var arg = last.argument;
+          toAssignable(arg, isBinding);
+          if (arg.type !== "Identifier" && arg.type !== "MemberExpression" && arg.type !== "ArrayPattern")
+            unexpected(arg.start);
+          break;
+        default:
+          toAssignable(last, isBinding);
+      }
+    }
+    return exprList;
+  }
+
+  // Parses spread element.
+
+  function parseSpread(refShorthandDefaultPos) {
+    var node = startNode();
+    next();
+    node.argument = parseMaybeAssign(refShorthandDefaultPos);
+    return finishNode(node, "SpreadElement");
+  }
+
+  function parseRest() {
+    var node = startNode();
+    next();
+    node.argument = tokType === _name || tokType === _bracketL ? parseBindingAtom() : unexpected();
+    return finishNode(node, "RestElement");
+  }
+
+  // Parses lvalue (assignable) atom.
+
+  function parseBindingAtom() {
+    if (options.ecmaVersion < 6) return parseIdent();
+    switch (tokType) {
+      case _name:
+        return parseIdent();
+
+      case _bracketL:
+        var node = startNode();
+        next();
+        node.elements = parseBindingList(_bracketR, true);
+        return finishNode(node, "ArrayPattern");
+
+      case _braceL:
+        return parseObj(true);
+
+      default:
+        unexpected();
+    }
+  }
+
+  function parseBindingList(close, allowEmpty) {
+    var elts = [], first = true;
+    while (!eat(close)) {
+      first ? first = false : expect(_comma);
+      if (tokType === _ellipsis) {
+        elts.push(parseRest());
+        expect(close);
+        break;
+      }
+      elts.push(allowEmpty && tokType === _comma ? null : parseMaybeDefault());
+    }
+    return elts;
+  }
+
+  // Parses assignment pattern around given atom if possible.
+
+  function parseMaybeDefault(startPos, left) {
+    startPos = startPos || storeCurrentPos();
+    left = left || parseBindingAtom();
+    if (!eat(_eq)) return left;
+    var node = startNodeAt(startPos);
+    node.operator = "=";
+    node.left = left;
+    node.right = parseMaybeAssign();
+    return finishNode(node, "AssignmentPattern");
   }
 
   // Verify that argument names are not repeated, and it does not
@@ -1444,6 +1627,9 @@
           if (elem) checkFunctionParam(elem, nameHash);
         }
         break;
+
+      case "RestElement":
+        return checkFunctionParam(param.argument, nameHash);
     }
   }
 
@@ -1483,14 +1669,12 @@
     switch (expr.type) {
       case "Identifier":
         if (strict && (isStrictBadIdWord(expr.name) || isStrictReservedWord(expr.name)))
-          raise(expr.start, isBinding
-            ? "Binding " + expr.name + " in strict mode"
-            : "Assigning to " + expr.name + " in strict mode"
-          );
+          raise(expr.start, (isBinding ? "Binding " : "Assigning to ") + expr.name + " in strict mode");
         break;
 
       case "MemberExpression":
-        if (!isBinding) break;
+        if (isBinding) raise(expr.start, "Binding to member expression");
+        break;
 
       case "ObjectPattern":
         for (var i = 0; i < expr.properties.length; i++)
@@ -1504,7 +1688,12 @@
         }
         break;
 
-      case "SpreadElement":
+      case "AssignmentPattern":
+        checkLVal(expr.left);
+        break;
+
+      case "RestElement":
+        checkLVal(expr.argument);
         break;
 
       default:
@@ -1523,15 +1712,13 @@
     var first = true;
     if (!node.body) node.body = [];
     while (tokType !== _eof) {
-      var stmt = parseStatement(true);
+      var stmt = parseStatement(true, true);
       node.body.push(stmt);
       if (first && isUseStrict(stmt)) setStrict(true);
       first = false;
     }
 
-    lastStart = tokStart;
-    lastEnd = tokEnd;
-    lastEndLoc = tokEndLoc;
+    next();
     return finishNode(node, "Program");
   }
 
@@ -1544,10 +1731,7 @@
   // `if (foo) /blah/.exec(foo);`, where looking at the previous token
   // does not help.
 
-  function parseStatement(topLevel) {
-    if (tokType === _slash || tokType === _assign && tokVal == "/=")
-      readToken(true);
-
+  function parseStatement(declaration, topLevel) {
     var starttype = tokType, node = startNode();
 
     // Most types of statements are recognized by the keyword they
@@ -1559,14 +1743,19 @@
     case _debugger: return parseDebuggerStatement(node);
     case _do: return parseDoStatement(node);
     case _for: return parseForStatement(node);
-    case _function: return parseFunctionStatement(node);
-    case _class: return parseClass(node, true);
+    case _function:
+      if (!declaration && options.ecmaVersion >= 6) unexpected();
+      return parseFunctionStatement(node);
+    case _class:
+      if (!declaration) unexpected();
+      return parseClass(node, true);
     case _if: return parseIfStatement(node);
     case _return: return parseReturnStatement(node);
     case _switch: return parseSwitchStatement(node);
     case _throw: return parseThrowStatement(node);
     case _try: return parseTryStatement(node);
-    case _var: case _let: case _const: return parseVarStatement(node, starttype.keyword);
+    case _let: case _const: if (!declaration) unexpected(); // NOTE: falls through to _var
+    case _var: return parseVarStatement(node, starttype.keyword);
     case _while: return parseWhileStatement(node);
     case _with: return parseWithStatement(node);
     case _braceL: return parseBlock(); // no point creating a function for this
@@ -1622,7 +1811,7 @@
   function parseDoStatement(node) {
     next();
     labels.push(loopLabel);
-    node.body = parseStatement();
+    node.body = parseStatement(false);
     labels.pop();
     expect(_while);
     node.test = parseParenExpression();
@@ -1651,15 +1840,19 @@
       next();
       parseVar(init, true, varKind);
       finishNode(init, "VariableDeclaration");
-      if ((tokType === _in || (options.ecmaVersion >= 6 && tokType === _name && tokVal === "of")) && init.declarations.length === 1 &&
+      if ((tokType === _in || (options.ecmaVersion >= 6 && isContextual("of"))) && init.declarations.length === 1 &&
           !(isLet && init.declarations[0].init))
         return parseForIn(node, init);
       return parseFor(node, init);
     }
-    var init = parseExpression(false, true);
-    if (tokType === _in || (options.ecmaVersion >= 6 && tokType === _name && tokVal === "of")) {
+    var refShorthandDefaultPos = {start: 0};
+    var init = parseExpression(true, refShorthandDefaultPos);
+    if (tokType === _in || (options.ecmaVersion >= 6 && isContextual("of"))) {
+      toAssignable(init);
       checkLVal(init);
       return parseForIn(node, init);
+    } else if (refShorthandDefaultPos.start) {
+      unexpected(refShorthandDefaultPos.start);
     }
     return parseFor(node, init);
   }
@@ -1672,8 +1865,8 @@
   function parseIfStatement(node) {
     next();
     node.test = parseParenExpression();
-    node.consequent = parseStatement();
-    node.alternate = eat(_else) ? parseStatement() : null;
+    node.consequent = parseStatement(false);
+    node.alternate = eat(_else) ? parseStatement(false) : null;
     return finishNode(node, "IfStatement");
   }
 
@@ -1717,7 +1910,7 @@
         expect(_colon);
       } else {
         if (!cur) unexpected();
-        cur.consequent.push(parseStatement());
+        cur.consequent.push(parseStatement(true));
       }
     }
     if (cur) finishNode(cur, "SwitchCase");
@@ -1743,9 +1936,8 @@
       var clause = startNode();
       next();
       expect(_parenL);
-      clause.param = parseIdent();
-      if (strict && isStrictBadIdWord(clause.param.name))
-        raise(clause.param.start, "Binding " + clause.param.name + " in strict mode");
+      clause.param = parseBindingAtom();
+      checkLVal(clause.param, true);
       expect(_parenR);
       clause.guard = null;
       clause.body = parseBlock();
@@ -1769,7 +1961,7 @@
     next();
     node.test = parseParenExpression();
     labels.push(loopLabel);
-    node.body = parseStatement();
+    node.body = parseStatement(false);
     labels.pop();
     return finishNode(node, "WhileStatement");
   }
@@ -1778,7 +1970,7 @@
     if (strict) raise(tokStart, "'with' in strict mode");
     next();
     node.object = parseParenExpression();
-    node.body = parseStatement();
+    node.body = parseStatement(false);
     return finishNode(node, "WithStatement");
   }
 
@@ -1792,7 +1984,7 @@
       if (labels[i].name === maybeName) raise(expr.start, "Label '" + maybeName + "' is already declared");
     var kind = tokType.isLoop ? "loop" : tokType === _switch ? "switch" : null;
     labels.push({name: maybeName, kind: kind});
-    node.body = parseStatement();
+    node.body = parseStatement(true);
     labels.pop();
     node.label = expr;
     return finishNode(node, "LabeledStatement");
@@ -1823,7 +2015,7 @@
     node.body = [];
     expect(_braceL);
     while (!eat(_braceR)) {
-      var stmt = parseStatement();
+      var stmt = parseStatement(true);
       node.body.push(stmt);
       if (first && allowStrict && isUseStrict(stmt)) {
         oldStrict = strict;
@@ -1846,7 +2038,7 @@
     expect(_semi);
     node.update = tokType === _parenR ? null : parseExpression();
     expect(_parenR);
-    node.body = parseStatement();
+    node.body = parseStatement(false);
     labels.pop();
     return finishNode(node, "ForStatement");
   }
@@ -1860,7 +2052,7 @@
     node.left = init;
     node.right = parseExpression();
     expect(_parenR);
-    node.body = parseStatement();
+    node.body = parseStatement(false);
     labels.pop();
     return finishNode(node, type);
   }
@@ -1872,9 +2064,9 @@
     node.kind = kind;
     for (;;) {
       var decl = startNode();
-      decl.id = options.ecmaVersion >= 6 ? toAssignable(parseExprAtom()) : parseIdent();
+      decl.id = parseBindingAtom();
       checkLVal(decl.id, true);
-      decl.init = eat(_eq) ? parseExpression(true, noIn) : (kind === _const.keyword ? unexpected() : null);
+      decl.init = eat(_eq) ? parseMaybeAssign(noIn) : (kind === _const.keyword ? unexpected() : null);
       node.declarations.push(finishNode(decl, "VariableDeclarator"));
       if (!eat(_comma)) break;
     }
@@ -1889,17 +2081,20 @@
   // and, *if* the syntactic construct they handle is present, wrap
   // the AST node that the inner parser gave them in another node.
 
-  // Parse a full expression. The arguments are used to forbid comma
-  // sequences (in argument lists, array literals, or object literals)
-  // or the `in` operator (in for loops initalization expressions).
+  // Parse a full expression. The optional arguments are used to
+  // forbid the `in` operator (in for loops initalization expressions)
+  // and provide reference for storing '=' operator inside shorthand
+  // property assignment in contexts where both object expression
+  // and object pattern might appear (so it's possible to raise
+  // delayed syntax error at correct position).
 
-  function parseExpression(noComma, noIn) {
+  function parseExpression(noIn, refShorthandDefaultPos) {
     var start = storeCurrentPos();
-    var expr = parseMaybeAssign(noIn);
-    if (!noComma && tokType === _comma) {
+    var expr = parseMaybeAssign(noIn, refShorthandDefaultPos);
+    if (tokType === _comma) {
       var node = startNodeAt(start);
       node.expressions = [expr];
-      while (eat(_comma)) node.expressions.push(parseMaybeAssign(noIn));
+      while (eat(_comma)) node.expressions.push(parseMaybeAssign(noIn, refShorthandDefaultPos));
       return finishNode(node, "SequenceExpression");
     }
     return expr;
@@ -1908,32 +2103,43 @@
   // Parse an assignment expression. This includes applications of
   // operators like `+=`.
 
-  function parseMaybeAssign(noIn) {
+  function parseMaybeAssign(noIn, refShorthandDefaultPos) {
+    var failOnShorthandAssign;
+    if (!refShorthandDefaultPos) {
+      refShorthandDefaultPos = {start: 0};
+      failOnShorthandAssign = true;
+    } else {
+      failOnShorthandAssign = false;
+    }
     var start = storeCurrentPos();
-    var left = parseMaybeConditional(noIn);
+    var left = parseMaybeConditional(noIn, refShorthandDefaultPos);
     if (tokType.isAssign) {
       var node = startNodeAt(start);
       node.operator = tokVal;
       node.left = tokType === _eq ? toAssignable(left) : left;
+      refShorthandDefaultPos.start = 0; // reset because shorthand default was used correctly
       checkLVal(left);
       next();
       node.right = parseMaybeAssign(noIn);
       return finishNode(node, "AssignmentExpression");
+    } else if (failOnShorthandAssign && refShorthandDefaultPos.start) {
+      unexpected(refShorthandDefaultPos.start);
     }
     return left;
   }
 
   // Parse a ternary conditional (`?:`) operator.
 
-  function parseMaybeConditional(noIn) {
+  function parseMaybeConditional(noIn, refShorthandDefaultPos) {
     var start = storeCurrentPos();
-    var expr = parseExprOps(noIn);
+    var expr = parseExprOps(noIn, refShorthandDefaultPos);
+    if (refShorthandDefaultPos && refShorthandDefaultPos.start) return expr;
     if (eat(_question)) {
       var node = startNodeAt(start);
       node.test = expr;
-      node.consequent = parseExpression(true);
+      node.consequent = parseMaybeAssign();
       expect(_colon);
-      node.alternate = parseExpression(true, noIn);
+      node.alternate = parseMaybeAssign(noIn);
       return finishNode(node, "ConditionalExpression");
     }
     return expr;
@@ -1941,9 +2147,11 @@
 
   // Start the precedence parser.
 
-  function parseExprOps(noIn) {
+  function parseExprOps(noIn, refShorthandDefaultPos) {
     var start = storeCurrentPos();
-    return parseExprOp(parseMaybeUnary(), start, -1, noIn);
+    var expr = parseMaybeUnary(refShorthandDefaultPos);
+    if (refShorthandDefaultPos && refShorthandDefaultPos.start) return expr;
+    return parseExprOp(expr, start, -1, noIn);
   }
 
   // Parse binary operators with the operator precedence parsing
@@ -1972,27 +2180,23 @@
 
   // Parse unary operators, both prefix and postfix.
 
-  function parseMaybeUnary() {
+  function parseMaybeUnary(refShorthandDefaultPos) {
     if (tokType.prefix) {
-      var node = startNode(), update = tokType.isUpdate, nodeType;
-      if (tokType === _ellipsis) {
-        nodeType = "SpreadElement";
-      } else {
-        nodeType = update ? "UpdateExpression" : "UnaryExpression";
-        node.operator = tokVal;
-        node.prefix = true;
-      }
-      tokRegexpAllowed = true;
+      var node = startNode(), update = tokType.isUpdate;
+      node.operator = tokVal;
+      node.prefix = true;
       next();
       node.argument = parseMaybeUnary();
+      if (refShorthandDefaultPos && refShorthandDefaultPos.start) unexpected(refShorthandDefaultPos.start);
       if (update) checkLVal(node.argument);
       else if (strict && node.operator === "delete" &&
                node.argument.type === "Identifier")
         raise(node.start, "Deleting local variable in strict mode");
-      return finishNode(node, nodeType);
+      return finishNode(node, update ? "UpdateExpression" : "UnaryExpression");
     }
     var start = storeCurrentPos();
-    var expr = parseExprSubscripts();
+    var expr = parseExprSubscripts(refShorthandDefaultPos);
+    if (refShorthandDefaultPos && refShorthandDefaultPos.start) return expr;
     while (tokType.postfix && !canInsertSemicolon()) {
       var node = startNodeAt(start);
       node.operator = tokVal;
@@ -2007,9 +2211,11 @@
 
   // Parse call, dot, and `[]`-subscript expressions.
 
-  function parseExprSubscripts() {
+  function parseExprSubscripts(refShorthandDefaultPos) {
     var start = storeCurrentPos();
-    return parseSubscripts(parseExprAtom(), start);
+    var expr = parseExprAtom(refShorthandDefaultPos);
+    if (refShorthandDefaultPos && refShorthandDefaultPos.start) return expr;
+    return parseSubscripts(expr, start);
   }
 
   function parseSubscripts(base, start, noCalls) {
@@ -2031,7 +2237,7 @@
       node.callee = base;
       node.arguments = parseExprList(_parenR, false);
       return parseSubscripts(finishNode(node, "CallExpression"), start, noCalls);
-    } else if (tokType === _template) {
+    } else if (tokType === _backQuote) {
       var node = startNodeAt(start);
       node.tag = base;
       node.quasi = parseTemplate();
@@ -2044,7 +2250,7 @@
   // `new`, or an expression wrapped in punctuation like `()`, `[]`,
   // or `{}`.
 
-  function parseExprAtom() {
+  function parseExprAtom(refShorthandDefaultPos) {
     switch (tokType) {
     case _this:
       var node = startNode();
@@ -2057,7 +2263,7 @@
     case _name:
       var start = storeCurrentPos();
       var id = parseIdent(tokType !== _name);
-      if (eat(_arrow)) {
+      if (!canInsertSemicolon() && eat(_arrow)) {
         return parseArrowExpression(startNodeAt(start), [id]);
       }
       return id;
@@ -2085,42 +2291,7 @@
       return finishNode(node, "Literal");
 
     case _parenL:
-      var start = storeCurrentPos();
-      var val, exprList;
-      next();
-      // check whether this is generator comprehension or regular expression
-      if (options.ecmaVersion >= 7 && tokType === _for) {
-        val = parseComprehension(startNodeAt(start), true);
-      } else {
-        var oldParenL = ++metParenL;
-        if (tokType !== _parenR) {
-          val = parseExpression();
-          exprList = val.type === "SequenceExpression" ? val.expressions : [val];
-        } else {
-          exprList = [];
-        }
-        expect(_parenR);
-        // if '=>' follows '(...)', convert contents to arguments
-        if (metParenL === oldParenL && eat(_arrow)) {
-          val = parseArrowExpression(startNodeAt(start), exprList);
-        } else {
-          // forbid '()' before everything but '=>'
-          if (!val) unexpected(lastStart);
-          // forbid '...' in sequence expressions
-          if (options.ecmaVersion >= 6) {
-            for (var i = 0; i < exprList.length; i++) {
-              if (exprList[i].type === "SpreadElement") unexpected();
-            }
-          }
-
-          if (options.preserveParens) {
-            var par = startNodeAt(start);
-            par.expression = val;
-            val = finishNode(par, "ParenthesizedExpression");
-          }
-        }
-      }
-      return val;
+      return parseParenAndDistinguishExpression();
 
     case _bracketL:
       var node = startNode();
@@ -2129,11 +2300,11 @@
       if (options.ecmaVersion >= 7 && tokType === _for) {
         return parseComprehension(node, false);
       }
-      node.elements = parseExprList(_bracketR, true, true);
+      node.elements = parseExprList(_bracketR, true, true, refShorthandDefaultPos);
       return finishNode(node, "ArrayExpression");
 
     case _braceL:
-      return parseObj();
+      return parseObj(false, refShorthandDefaultPos);
 
     case _function:
       var node = startNode();
@@ -2146,11 +2317,67 @@
     case _new:
       return parseNew();
 
-    case _template:
+    case _backQuote:
       return parseTemplate();
 
     default:
       unexpected();
+    }
+  }
+
+  function parseParenAndDistinguishExpression() {
+    var start = storeCurrentPos(), val;
+    if (options.ecmaVersion >= 6) {
+      next();
+
+      if (options.ecmaVersion >= 7 && tokType === _for) {
+        return parseComprehension(startNodeAt(start), true);
+      }
+
+      var innerStart = storeCurrentPos(), exprList = [], first = true;
+      var refShorthandDefaultPos = {start: 0}, spreadStart, innerParenStart;
+      while (tokType !== _parenR) {
+        first ? first = false : expect(_comma);
+        if (tokType === _ellipsis) {
+          spreadStart = tokStart;
+          exprList.push(parseRest());
+          break;
+        } else {
+          if (tokType === _parenL && !innerParenStart) {
+            innerParenStart = tokStart;
+          }
+          exprList.push(parseMaybeAssign(false, refShorthandDefaultPos));
+        }
+      }
+      var innerEnd = storeCurrentPos();
+      expect(_parenR);
+
+      if (!canInsertSemicolon() && eat(_arrow)) {
+        if (innerParenStart) unexpected(innerParenStart);
+        return parseArrowExpression(startNodeAt(start), exprList);
+      }
+
+      if (!exprList.length) unexpected(lastStart);
+      if (spreadStart) unexpected(spreadStart);
+      if (refShorthandDefaultPos.start) unexpected(refShorthandDefaultPos.start);
+
+      if (exprList.length > 1) {
+        val = startNodeAt(innerStart);
+        val.expressions = exprList;
+        finishNodeAt(val, "SequenceExpression", innerEnd);
+      } else {
+        val = exprList[0];
+      }
+    } else {
+      val = parseParenExpression();
+    }
+
+    if (options.preserveParens) {
+      var par = startNodeAt(start);
+      par.expression = val;
+      return finishNode(par, "ParenthesizedExpression");
+    } else {
+      return val;
     }
   }
 
@@ -2171,30 +2398,35 @@
   // Parse template expression.
 
   function parseTemplateElement() {
-    var elem = startNodeAt(options.locations ? [tokStart + 1, tokStartLoc.offset(1)] : tokStart + 1);
-    elem.value = tokVal;
-    elem.tail = input.charCodeAt(tokEnd - 1) !== 123; // '{'
+    var elem = startNode();
+    elem.value = {
+      raw: input.slice(tokStart, tokEnd),
+      cooked: tokVal
+    };
     next();
-    var endOff = elem.tail ? 1 : 2;
-    return finishNodeAt(elem, "TemplateElement", options.locations ? [lastEnd - endOff, lastEndLoc.offset(-endOff)] : lastEnd - endOff);
+    elem.tail = tokType === _backQuote;
+    return finishNode(elem, "TemplateElement");
   }
 
   function parseTemplate() {
     var node = startNode();
+    next();
     node.expressions = [];
     var curElt = parseTemplateElement();
     node.quasis = [curElt];
     while (!curElt.tail) {
+      expect(_dollarBraceL);
       node.expressions.push(parseExpression());
-      if (tokType !== _templateContinued) unexpected();
+      expect(_braceR);
       node.quasis.push(curElt = parseTemplateElement());
     }
+    next();
     return finishNode(node, "TemplateLiteral");
   }
 
-  // Parse an object literal.
+  // Parse an object literal or binding pattern.
 
-  function parseObj() {
+  function parseObj(isPattern, refShorthandDefaultPos) {
     var node = startNode(), first = true, propHash = {};
     node.properties = [];
     next();
@@ -2204,36 +2436,51 @@
         if (options.allowTrailingCommas && eat(_braceR)) break;
       } else first = false;
 
-      var prop = startNode(), isGenerator;
+      var prop = startNode(), isGenerator, start;
       if (options.ecmaVersion >= 6) {
         prop.method = false;
         prop.shorthand = false;
-        isGenerator = eat(_star);
+        if (isPattern || refShorthandDefaultPos) {
+          start = storeCurrentPos();
+        }
+        if (!isPattern) {
+          isGenerator = eat(_star);
+        }
       }
       parsePropertyName(prop);
       if (eat(_colon)) {
-        prop.value = parseExpression(true);
+        prop.value = isPattern ? parseMaybeDefault() : parseMaybeAssign(false, refShorthandDefaultPos);
         prop.kind = "init";
       } else if (options.ecmaVersion >= 6 && tokType === _parenL) {
+        if (isPattern) unexpected();
         prop.kind = "init";
         prop.method = true;
         prop.value = parseMethod(isGenerator);
       } else if (options.ecmaVersion >= 5 && !prop.computed && prop.key.type === "Identifier" &&
-                 (prop.key.name === "get" || prop.key.name === "set")) {
-        if (isGenerator) unexpected();
+                 (prop.key.name === "get" || prop.key.name === "set") &&
+                 (tokType != _comma && tokType != _braceR)) {
+        if (isGenerator || isPattern) unexpected();
         prop.kind = prop.key.name;
         parsePropertyName(prop);
         prop.value = parseMethod(false);
       } else if (options.ecmaVersion >= 6 && !prop.computed && prop.key.type === "Identifier") {
         prop.kind = "init";
-        prop.value = prop.key;
+        if (isPattern) {
+          prop.value = parseMaybeDefault(start, prop.key);
+        } else if (tokType === _eq && refShorthandDefaultPos) {
+          if (!refShorthandDefaultPos.start)
+            refShorthandDefaultPos.start = tokStart;
+          prop.value = parseMaybeDefault(start, prop.key);
+        } else {
+          prop.value = prop.key;
+        }
         prop.shorthand = true;
       } else unexpected();
 
       checkPropClash(prop, propHash);
       node.properties.push(finishNode(prop, "Property"));
     }
-    return finishNode(node, "ObjectExpression");
+    return finishNode(node, isPattern ? "ObjectPattern" : "ObjectExpression");
   }
 
   function parsePropertyName(prop) {
@@ -2254,11 +2501,9 @@
 
   function initFunction(node) {
     node.id = null;
-    node.params = [];
     if (options.ecmaVersion >= 6) {
-      node.defaults = [];
-      node.rest = null;
       node.generator = false;
+      node.expression = false;
     }
   }
 
@@ -2273,7 +2518,8 @@
     if (isStatement || tokType === _name) {
       node.id = parseIdent();
     }
-    parseFunctionParams(node);
+    expect(_parenL);
+    node.params = parseBindingList(_parenR, false);
     parseFunctionBody(node, allowExpressionBody);
     return finishNode(node, isStatement ? "FunctionDeclaration" : "FunctionExpression");
   }
@@ -2283,7 +2529,8 @@
   function parseMethod(isGenerator) {
     var node = startNode();
     initFunction(node);
-    parseFunctionParams(node);
+    expect(_parenL);
+    node.params = parseBindingList(_parenR, false);
     var allowExpressionBody;
     if (options.ecmaVersion >= 6) {
       node.generator = isGenerator;
@@ -2299,67 +2546,9 @@
 
   function parseArrowExpression(node, params) {
     initFunction(node);
-
-    var defaults = node.defaults, hasDefaults = false;
-
-    for (var i = 0, lastI = params.length - 1; i <= lastI; i++) {
-      var param = params[i];
-
-      if (param.type === "AssignmentExpression" && param.operator === "=") {
-        hasDefaults = true;
-        params[i] = param.left;
-        defaults.push(param.right);
-      } else {
-        toAssignable(param, i === lastI, true);
-        defaults.push(null);
-        if (param.type === "SpreadElement") {
-          params.length--;
-          node.rest = param.argument;
-          break;
-        }
-      }
-    }
-
-    node.params = params;
-    if (!hasDefaults) node.defaults = [];
-
+    node.params = toAssignableList(params, true);
     parseFunctionBody(node, true);
     return finishNode(node, "ArrowFunctionExpression");
-  }
-
-  // Parse function parameters.
-
-  function parseFunctionParams(node) {
-    var defaults = [], hasDefaults = false;
-
-    expect(_parenL);
-    for (;;) {
-      if (eat(_parenR)) {
-        break;
-      } else if (options.ecmaVersion >= 6 && eat(_ellipsis)) {
-        node.rest = toAssignable(parseExprAtom(), false, true);
-        checkSpreadAssign(node.rest);
-        expect(_parenR);
-        defaults.push(null);
-        break;
-      } else {
-        node.params.push(options.ecmaVersion >= 6 ? toAssignable(parseExprAtom(), false, true) : parseIdent());
-        if (options.ecmaVersion >= 6) {
-          if (eat(_eq)) {
-            hasDefaults = true;
-            defaults.push(parseExpression(true));
-          } else {
-            defaults.push(null);
-          }
-        }
-        if (!eat(_comma)) {
-          expect(_parenR);
-          break;
-        }
-      }
-    }
-
-    if (hasDefaults) node.defaults = defaults;
   }
 
   // Parse function body and check parameters.
@@ -2368,7 +2557,7 @@
     var isExpression = allowExpression && tokType !== _braceL;
 
     if (isExpression) {
-      node.body = parseExpression(true);
+      node.body = parseMaybeAssign();
       node.expression = true;
     } else {
       // Start a new scope with regard to labels and the `inFunction`
@@ -2389,8 +2578,6 @@
         checkFunctionParam(node.id, {});
       for (var i = 0; i < node.params.length; i++)
         checkFunctionParam(node.params[i], nameHash);
-      if (node.rest)
-        checkFunctionParam(node.rest, nameHash);
     }
   }
 
@@ -2400,20 +2587,24 @@
   function parseClass(node, isStatement) {
     next();
     node.id = tokType === _name ? parseIdent() : isStatement ? unexpected() : null;
-    node.superClass = eat(_extends) ? parseExpression() : null;
+    node.superClass = eat(_extends) ? parseExprSubscripts() : null;
     var classBody = startNode();
     classBody.body = [];
     expect(_braceL);
     while (!eat(_braceR)) {
+      if (eat(_semi)) continue;
       var method = startNode();
-      if (tokType === _name && tokVal === "static") {
-        next();
+      var isGenerator = eat(_star);
+      parsePropertyName(method);
+      if (tokType !== _parenL && !method.computed && method.key.type === "Identifier" &&
+          method.key.name === "static") {
+        if (isGenerator) unexpected();
         method['static'] = true;
+        isGenerator = eat(_star);
+        parsePropertyName(method);
       } else {
         method['static'] = false;
       }
-      var isGenerator = eat(_star);
-      parsePropertyName(method);
       if (tokType !== _parenL && !method.computed && method.key.type === "Identifier" &&
           (method.key.name === "get" || method.key.name === "set")) {
         if (isGenerator) unexpected();
@@ -2424,7 +2615,6 @@
       }
       method.value = parseMethod(isGenerator);
       classBody.body.push(finishNode(method, "MethodDefinition"));
-      eat(_semi);
     }
     node.body = finishNode(classBody, "ClassBody");
     return finishNode(node, isStatement ? "ClassDeclaration" : "ClassExpression");
@@ -2436,7 +2626,7 @@
   // nothing in between them to be parsed as `null` (which is needed
   // for array literals).
 
-  function parseExprList(close, allowTrailingComma, allowEmpty) {
+  function parseExprList(close, allowTrailingComma, allowEmpty, refShorthandDefaultPos) {
     var elts = [], first = true;
     while (!eat(close)) {
       if (!first) {
@@ -2444,8 +2634,14 @@
         if (allowTrailingComma && options.allowTrailingCommas && eat(close)) break;
       } else first = false;
 
-      if (allowEmpty && tokType === _comma) elts.push(null);
-      else elts.push(parseExpression(true));
+      if (allowEmpty && tokType === _comma) {
+        elts.push(null);
+      } else {
+        if (tokType === _ellipsis)
+          elts.push(parseSpread(refShorthandDefaultPos));
+        else
+          elts.push(parseMaybeAssign(false, refShorthandDefaultPos));
+      }
     }
     return elts;
   }
@@ -2470,7 +2666,6 @@
     } else {
       unexpected();
     }
-    tokRegexpAllowed = false;
     next();
     return finishNode(node, "Identifier");
   }
@@ -2481,14 +2676,21 @@
     next();
     // export var|const|let|function|class ...;
     if (tokType === _var || tokType === _const || tokType === _let || tokType === _function || tokType === _class) {
-      node.declaration = parseStatement();
+      node.declaration = parseStatement(true);
       node['default'] = false;
       node.specifiers = null;
       node.source = null;
     } else
     // export default ...;
     if (eat(_default)) {
-      node.declaration = parseExpression(true);
+      var expr = parseMaybeAssign();
+      if (expr.id) {
+        switch (expr.type) {
+          case "FunctionExpression": expr.type = "FunctionDeclaration"; break;
+          case "ClassExpression": expr.type = "ClassDeclaration"; break;
+        }
+      }
+      node.declaration = expr;
       node['default'] = true;
       node.specifiers = null;
       node.source = null;
@@ -2500,8 +2702,7 @@
       node.declaration = null;
       node['default'] = false;
       node.specifiers = parseExportSpecifiers();
-      if (tokType === _name && tokVal === "from") {
-        next();
+      if (eatContextual("from")) {
         node.source = tokType === _string ? parseExprAtom() : unexpected();
       } else {
         if (isBatch) unexpected();
@@ -2532,12 +2733,7 @@
 
         var node = startNode();
         node.id = parseIdent(tokType === _default);
-        if (tokType === _name && tokVal === "as") {
-          next();
-          node.name = parseIdent(true);
-        } else {
-          node.name = null;
-        }
+        node.name = eatContextual("as") ? parseIdent(true) : null;
         nodes.push(finishNode(node, "ExportSpecifier"));
       }
     }
@@ -2555,8 +2751,7 @@
       node.kind = "";
     } else {
       node.specifiers = parseImportSpecifiers();
-      if (tokType !== _name || tokVal !== "from") unexpected();
-      next();
+      expectContextual("from");
       node.source = tokType === _string ? parseExprAtom() : unexpected();
     }
     semicolon();
@@ -2580,8 +2775,7 @@
     if (tokType === _star) {
       var node = startNode();
       next();
-      if (tokType !== _name || tokVal !== "as") unexpected();
-      next();
+      expectContextual("as");
       node.name = parseIdent();
       checkLVal(node.name, true);
       nodes.push(finishNode(node, "ImportBatchSpecifier"));
@@ -2596,12 +2790,7 @@
 
       var node = startNode();
       node.id = parseIdent(true);
-      if (tokType === _name && tokVal === "as") {
-        next();
-        node.name = parseIdent();
-      } else {
-        node.name = null;
-      }
+      node.name = eatContextual("as") ? parseIdent() : null;
       checkLVal(node.name || node.id, true);
       node['default'] = false;
       nodes.push(finishNode(node, "ImportSpecifier"));
@@ -2619,7 +2808,7 @@
       node.argument = null;
     } else {
       node.delegate = eat(_star);
-      node.argument = parseExpression(true);
+      node.argument = parseMaybeAssign();
     }
     return finishNode(node, "YieldExpression");
   }
@@ -2632,13 +2821,9 @@
       var block = startNode();
       next();
       expect(_parenL);
-      block.left = toAssignable(parseExprAtom());
+      block.left = parseBindingAtom();
       checkLVal(block.left, true);
-      if (tokType !== _name || tokVal !== "of") unexpected();
-      next();
-      // `of` property is here for compatibility with Esprima's AST
-      // which also supports deprecated [for (... in ...) expr]
-      block.of = true;
+      expectContextual("of");
       block.right = parseExpression();
       expect(_parenR);
       node.blocks.push(finishNode(block, "ComprehensionBlock"));
@@ -2649,5 +2834,4 @@
     node.generator = isGenerator;
     return finishNode(node, "ComprehensionExpression");
   }
-
 });
