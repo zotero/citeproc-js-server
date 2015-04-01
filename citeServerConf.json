@@ -5,7 +5,5 @@
     "cslPath" : "./csljson",
     "cslDependentPath": "./csl/dependent",
     "cslFetcherPath" : "./cslFetcher",
-    "engineCacheSize" : 20,
     "parser": "json"
 }
-
