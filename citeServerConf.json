@@ -1,9 +1,9 @@
 {
     "port" : 8085,
-    "logLevel" : "verbose",
-    "localesPath" : "./csljson-locales",
-    "cslPath" : "./csljson",
+    "logLevel" : "info",
+    "localesPath" : "./csl-locales",
+    "cslPath" : "./csl",
     "cslDependentPath": "./csl/dependent",
-    "cslFetcherPath" : "./cslFetcher",
-    "parser": "json"
+    "parser": "xml",
+    "engineCacheSize" : 40
 }
