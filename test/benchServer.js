@@ -245,10 +245,11 @@ var singleRequest = function(){
         useStyleString = randStyle();
     }
     
-    config.style = useStyleString;
+    //config.style = useStyleString;
     var qstringObject = _.extend({},
             defaultQueryObject,
-            _.pick(config, 'style', 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'));
+            _.pick(config, 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'),
+            {'style': useStyleString});
     var qstring = querystring.stringify(qstringObject);
     
     request = http.request({
