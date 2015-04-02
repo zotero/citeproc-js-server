@@ -1,21 +1,13 @@
 'use strict';
 
 var acorn = require('acorn');
-var walk = require('acorn/util/walk');
+var walk = require('acorn/dist/walk');
 
-//polyfill for https://github.com/marijnh/acorn/pull/195
-walk.base.ExportDeclaration = function (node, st, c) {
-  c(node.declaration, st);
+// polyfill for https://github.com/marijnh/acorn/pull/231
+walk.base.ExportNamedDeclaration = walk.base.ExportDefaultDeclaration = function (node, st, c) {
+  return c(node.declaration, st);
 };
-walk.base.ImportDeclaration = function (node, st, c) {
-  node.specifiers.forEach(function (specifier) {
-    c(specifier, st);
-  });
-};
-walk.base.ImportSpecifier = function (node, st, c) {
-};
-walk.base.ImportBatchSpecifier = function (node, st, c) {
-};
+walk.base.ImportDefaultSpecifier = walk.base.ImportNamespaceSpecifier = function () {};
 
 function isScope(node) {
   return node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration' || node.type === 'Program';
@@ -34,7 +26,11 @@ function declaresThis(node) {
 module.exports = findGlobals;
 function findGlobals(source) {
   var globals = [];
-  var ast = typeof source === 'string' ? acorn.parse(source, { ecmaVersion: 6, allowReturnOutsideFunction: true }) : source;
+  var ast = typeof source === 'string' ? acorn.parse(source, {
+    ecmaVersion: 6,
+    allowReturnOutsideFunction: true,
+    sourceType: 'module'
+  }) : source;
   if (!(ast && typeof ast === 'object' && ast.type === 'Program')) {
     throw new TypeError('Source must be either a string of JavaScript or an acorn AST');
   }
@@ -77,17 +73,23 @@ function findGlobals(source) {
       node.handler.body.locals = node.handler.body.locals || {};
       node.handler.body.locals[node.handler.param.name] = true;
     },
+    'ImportDefaultSpecifier': function (node) {
+      if (node.local.type === 'Identifier') {
+        ast.locals = ast.locals || {};
+        ast.locals[node.local.name] = true;
+      }
+    },
     'ImportSpecifier': function (node) {
-      var id = node.name ? node.name : node.id;
+      var id = node.local ? node.local : node.imported;
       if (id.type === 'Identifier') {
         ast.locals = ast.locals || {};
         ast.locals[id.name] = true;
       }
     },
-    'ImportBatchSpecifier': function (node) {
-      if (node.name.type === 'Identifier') {
+    'ImportNamespaceSpecifier': function (node) {
+      if (node.local.type === 'Identifier') {
         ast.locals = ast.locals || {};
-        ast.locals[node.name.name] = true;
+        ast.locals[node.local.name] = true;
       }
     }
   });
