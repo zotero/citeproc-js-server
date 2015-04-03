@@ -38,14 +38,17 @@ class jsonwalker:
         return obj
 
 if __name__ == "__main__":
-
+    #convert file or directory from csl xml to json
+    #usage:
+    #  convert all styles in ./csl that have been modified in the last 5 minutes and place them into ./csljson
+    #  xmltojson.py --changed 300 ./csl ./csljson
     import sys,os,argparse,datetime
     from stat import *
 
     parser = argparse.ArgumentParser(description='Convert xml to json for use with citeproc-js')
     parser.add_argument('source', type=str, help='source file or directory')
     parser.add_argument('dest', type=str, help='destination filename or directory')
-    parser.add_argument('--changed', nargs='?', metavar="N", type=int, help='convert files that have been modified within the last <N> seconds')
+    parser.add_argument('--changed', nargs='?', metavar="N", type=int, default=0, help='convert files that have been modified within the last <N> seconds')
 
     args = parser.parse_args()
     
@@ -77,7 +80,7 @@ if __name__ == "__main__":
                 newname = os.path.join(destDir, name)[0:-3] + 'json'
             else:
                 continue
-            if args.changed != None:
+            if args.changed != 0:
                 modified = datetime.datetime.fromtimestamp(os.stat(fullname).st_mtime)
                 if modified < changedCutoff:
                     #not modified recently enough; continue without converting
