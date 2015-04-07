@@ -23,7 +23,6 @@
     ***** END LICENSE BLOCK *****
 */
 
-var util = require('util');
 var fs = require('fs');
 var Promise = require('bluebird');
 var log = require('npmlog');
@@ -36,7 +35,7 @@ log.level = 'verbose';
 var config = {
     'maxconnections':2,
     'duration':3000,
-    'maxtotalrequests':1000,
+    'maxtotalrequests':1200,
     'showoutput':true,
     'style':'chicago-author-date',
     'responseformat':'json',
@@ -184,8 +183,9 @@ var singleRequest = function(){
     var useStyleString = config.style;
     //find the next filename in the dir list that is a csl file
     while(true){
-        if(stylesListCounter >= stylesList.length -1){
+        if(stylesListCounter >= stylesList.length){
             continueRequests = false;
+            Promise.delay(1000).then(outputStats);
             return;
         }
         useStyleString = stylesList[stylesListCounter];
@@ -241,9 +241,6 @@ var singleRequest = function(){
             }
             log.info("curConnections: " + curConnections);
             log.info("continueRequests: " + continueRequests);
-            if(!continueRequests && curConnections < 3){
-                outputStats();
-            }
         });
     });
     request.write(reqBody, 'utf8');
