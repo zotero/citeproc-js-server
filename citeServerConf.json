@@ -6,6 +6,6 @@
     "cslDependentPath": "./csl/dependent",
     "jsonLocalesPath" : "./csljson-locales",
     "jsonCslPath" : "./csljson",
-    "localParser": "json",
+    "localParser": "xml",
     "engineCacheSize" : 100
 }
