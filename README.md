@@ -1,5 +1,8 @@
 ﻿# citeproc-node
 
+Citeproc-node is tested with io.js. It should also work with nodejs 0.12 with harmony features, but
+jsdom, on which citeproc-node relies, has moved to io.js.
+
 ## Setting up a standalone citeproc-node server
 
 ### Step 1
@@ -25,38 +28,6 @@ If all is well, you will see:
 info Server running at http://127.0.0.1:8085
 ```
 
-However, you might see, instead, the following error:
-
-```
-...
-Error: Unable to load shared library /blah/blah/contextify.node
-...
-```
-
-If so, follow the instructions at the top of the error message, which on a
-Linux system might read something like this:
-
-```
- To rebuild, go to the Contextify root folder and run
-'node-waf distclean && node-waf configure build'.
-```
-
-So, do this:
-
-```
-cd node_modules/jsdom/node_modules/contextify/
-node-waf distclean &&  node-waf configure build
-```
-
-If the command gives an error the first time, try it again. If that does
-not help, try this while you are still in the contextify directory:
-
-```
-cd .. && rm -r contextify
-git clone https://github.com/brianmcd/contextify.git
-cd contextify && npm rebuild
-```
-
 ### Step 3
 
 Now to test the server using the sampledata.json file provided in the
@@ -66,7 +37,7 @@ console:
 ```
 curl --header "Content-type: application/json" \
   --data @sampledata.json -X POST \
-  http://127.0.0.1:8085?responseformat=html\&style=modern-language-association
+  'http://127.0.0.1:8085?responseformat=html&style=modern-language-association'
 ```
 
 You should see a response similar to this:
