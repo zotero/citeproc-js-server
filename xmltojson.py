@@ -58,6 +58,8 @@ if __name__ == "__main__":
         # It's a directory, convert all csl files inside
         sourceDir = args.source
         destDir = args.dest
+        if not os.path.exists(destDir):
+            os.mkdir(destDir)
         directory = True
     elif S_ISREG(mode):
         # It's a file, only convert this csl file
