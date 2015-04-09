@@ -57,6 +57,16 @@ You should see a response similar to this:
 
 Configuration parameters are specified in the *citeServerConf.json* file.
 
+Citeproc-node now supports csl styles that has been converted to JSON.
+This improves performance significantly on style initialization, and somewhat on style execution
+over the jsdom xml parsing mode, but requires the styles and locales to be converted to JSON ahead of time.
+This is only used when the resolved style url has a host of 'www.zotero.org'.
+There is now a python script (xmltojson.py) included to convert a single file or a directory, including
+the option to only convert files that have been modified within a specified time limit, to better handle
+periodic pulling of style/locale changes.
+To enable this mode, change the 'localParser' setting to 'json' and maintain parallel directories of
+JSON styles and locales pointed at by 'jsonCslPath' and 'jsonLocalesPath' settings.
+
 ## Running the tests
 
 Start citation server
