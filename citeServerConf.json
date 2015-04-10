@@ -3,9 +3,7 @@
     "logLevel" : "info",
     "localesPath" : "./csl-locales",
     "cslPath" : "./csl",
+    "renamedStylesPath": "./csl/renamed-styles.json",
     "cslDependentPath": "./csl/dependent",
-    "jsonLocalesPath" : "./csljson-locales",
-    "jsonCslPath" : "./csljson",
-    "localParser": "xml",
     "engineCacheSize" : 100
 }

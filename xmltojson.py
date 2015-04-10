@@ -76,7 +76,7 @@ if __name__ == "__main__":
         for name in names:
             if name[-4:] == '.csl':
                 fullname = os.path.join(sourceDir, name)
-                newname = os.path.join(destDir, name) + 'json'
+                newname = os.path.join(destDir, name)
             elif name[-4:] == '.xml':
                 fullname = os.path.join(sourceDir, name)
                 newname = os.path.join(destDir, name)[0:-3] + 'json'

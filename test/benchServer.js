@@ -23,17 +23,19 @@
     ***** END LICENSE BLOCK *****
 */
 
-var util = require('util');
-var fs = require('fs');
-var Promise = require('bluebird');
-var log = require('npmlog');
-var _ = require('underscore')._;
-var querystring = require('querystring');
+'use strict';
+
+let util = require('util');
+let fs = require('fs');
+let Promise = require('bluebird');
+let log = require('npmlog');
+let _ = require('underscore')._;
+let querystring = require('querystring');
 
 log.level = 'verbose';
 
 //process command line args for config
-var config = {
+let config = {
     'maxconnections':1,
     'duration':20,
     'maxtotalrequests':1,
@@ -50,7 +52,7 @@ var config = {
     'locale': 'en-US'
 };
 
-var defaultQueryObject = {
+let defaultQueryObject = {
     'style':'chicago-author-date',
     'responseformat':'json',
     'bibliography':'1',
@@ -61,7 +63,7 @@ var defaultQueryObject = {
 };
 
 
-var argv = require('optimist')
+let argv = require('optimist')
     .usage('')
     .default(config)
     .argv;
@@ -78,31 +80,31 @@ if(argv.customStylePath != '') {
     config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
 }
 
-var stylesList = fs.readdirSync(config.cslPath);
+let stylesList = fs.readdirSync(config.cslPath);
 stylesList = stylesList.sort();
-var stylesListCounter = 0;
-var errorStyles = [];
-var passedStyles = [];
-var loadcites = require('./loadcitesnode.js');
-var citeData = loadcites.data;
-var bib1 = loadcites.bib1;
-var bib2 = loadcites.bib2;
-var biball = loadcites.biball;
-var bib1post = {};
-var bib2post = {};
+let stylesListCounter = 0;
+let errorStyles = [];
+let passedStyles = [];
+let loadcites = require('./loadcitesnode.js');
+let citeData = loadcites.data;
+let bib1 = loadcites.bib1;
+let bib2 = loadcites.bib2;
+let biball = loadcites.biball;
+let bib1post = {};
+let bib2post = {};
 bib1post.items = [];
 bib2post.items = [];
-for(var i=0; i < bib1.length; i++){
+for(let i=0; i < bib1.length; i++){
     bib1post.items.push(citeData[ bib1[i] ]);
     //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
 }
-for(var i=0; i < bib2.length; i++){
+for(let i=0; i < bib2.length; i++){
     bib2post.items.push(citeData[ bib2[i] ]);
     //bib1post.items[bib1[i]] = citeData[ bib1[i] ];
 }
 //bib1post.citationClusters = loadcites.citations1;
 //bib2post.citationClusters = loadcites.citations1;
-var styleStrings = ['apsa',
+let styleStrings = ['apsa',
                     'apa',
                     'asa',
                     'chicago-author-date',
@@ -122,16 +124,16 @@ var styleStrings = ['apsa',
 if(config.hasOwnProperty('customStylePath')){
     bib2post.styleXml = config.customStyleXml;
 }
-reqBody = JSON.stringify(bib2post);
+let reqBody = JSON.stringify(bib2post);
 //log.info('postObj:');
 //log.info(bib2post);
 //log.info(bib1post);
 //fs.writeFileSync('./prettyRequestBodyJson', util.inspect(bib1post, false, null), 'utf8');
 //log.info("\n\n");
 
-var randReqCombo = function(){
-    var post = {'items':{}};
-    for(var i=0; i < biball.length; i++){
+let randReqCombo = function(){
+    let post = {'items':{}};
+    for(let i=0; i < biball.length; i++){
         if(Math.random() < 0.3){
             post.items[biball[i]] = citeData[ biball[i] ];
         }
@@ -139,28 +141,28 @@ var randReqCombo = function(){
     return post;
 };
 
-var randStyle = function(){
-    var randomnumber=Math.floor(Math.random()*(styleStrings.length));
+let randStyle = function(){
+    let randomnumber=Math.floor(Math.random()*(styleStrings.length));
     return styleStrings[randomnumber];
 };
 
-var continueRequests = true;
-var timeout = config.duration * 1000;
-var totalRequests = 0;
-var requestTimes = [];
-var benchStart = Date.now();
-var targetHost = '127.0.0.1';
-//var targetHost = '209.51.184.202';
+let continueRequests = true;
+let timeout = config.duration * 1000;
+let totalRequests = 0;
+let requestTimes = [];
+let benchStart = Date.now();
+let targetHost = '127.0.0.1';
+//let targetHost = '209.51.184.202';
 
-var outputStats = function(){
+let outputStats = function(){
     log.info("Benchmark Complete");
-    var totalRequests = connectionResults.length;
-    var totalTime = 0;
-    var maxTime = 0;
-    var minTime = 5000;
-    var i;
+    let totalRequests = connectionResults.length;
+    let totalTime = 0;
+    let maxTime = 0;
+    let minTime = 5000;
+    let i;
     for(i = 0; i < connectionResults.length; i++){
-        var reqTime = connectionResults[i].requestTime;
+        let reqTime = connectionResults[i].requestTime;
         totalTime += reqTime;
         maxTime = Math.max(maxTime, reqTime);
         minTime = Math.min(minTime, reqTime);
@@ -196,12 +198,12 @@ setTimeout(function(){
     }, 100);
 }, timeout);
 
-var curConnections = 0;
-var connectionResults = [];
-var http = require('http');
+let curConnections = 0;
+let connectionResults = [];
+let http = require('http');
 
 //make multiple parallel requests up to configured maxconnections
-var makeRequests = function(){
+let makeRequests = function(){
     while(true && continueRequests){
         if(curConnections < config.maxconnections && totalRequests < config.maxtotalrequests){
             curConnections++;
@@ -217,9 +219,9 @@ var makeRequests = function(){
 };
 
 //make a single request
-var singleRequest = function(){
+let singleRequest = function(){
     log.info("making new request");
-    var request;
+    let request;
     
     if(config.memoryUsage){
         request = http.request({
@@ -240,18 +242,18 @@ var singleRequest = function(){
         return;
     }
 //    log.info(config);
-    var useStyleString = config.style;
+    let useStyleString = config.style;
     if(config.style == 'rand'){
         useStyleString = randStyle();
     }
     
     //config.style = useStyleString;
-    var qstringObject = _.extend({},
+    let qstringObject = _.extend({},
             defaultQueryObject,
             _.pick(config, 'responseformat', 'bibliography', 'citations', 'outputformat', 'linkwrap', 'locale'),
             {'style': useStyleString});
-    var qstring = querystring.stringify(qstringObject);
-    
+    let qstring = querystring.stringify(qstringObject);
+    log.info(qstring);
     request = http.request({
         'hostname': targetHost,
         'port': 8085,
@@ -268,12 +270,13 @@ var singleRequest = function(){
             this.body += chunk;
         });
         response.on('end', function(){
+            let resp = this;
             curConnections--;
-            this.endDate = Date.now();
-            var timeElapsed = this.endDate - request.startDate;
+            resp.endDate = Date.now();
+            let timeElapsed = resp.endDate - request.startDate;
             requestTimes.push(timeElapsed);
-            var styleUsed = request.styleUsed;
-            if(this.statusCode != 200){
+            let styleUsed = request.styleUsed;
+            if(resp.statusCode != 200){
                 errorStyles.push(styleUsed);
             }
             else{
@@ -281,12 +284,14 @@ var singleRequest = function(){
             }
             log.info("timeElapsed: " + timeElapsed);
             connectionResults.push({
-                'status':this.statusCode,
-                'body':this.body,
+                'status':resp.statusCode,
+                'body':resp.body,
                 'requestTime': timeElapsed
             });
             if(config.showoutput){
-                log.info(this.body);
+                let obj = JSON.parse(resp.body);
+                log.info("response body");
+                console.log(obj);
             }
             log.info("curConnections: " + curConnections);
             log.info("continueRequests: " + continueRequests);
