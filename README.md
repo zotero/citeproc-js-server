@@ -3,6 +3,27 @@
 Citeproc-node is tested with io.js. It should also work with nodejs 0.12 with harmony features, but
 jsdom, on which citeproc-node relies, has moved to io.js.
 
+For optimal performance, you should maintain separate directories with json styles/locales.
+This can be done by running the included xmltojson.py:
+
+```
+./xmltojson.py ./csl ./csljson
+./xmltojson.py ./csl-locales ./csljson-locales
+```
+
+Or only those updated within the last 5 minutes:
+
+```
+xmltojson.py --changed 300 ./csl ./csljson
+xmltojson.py --changed 300 ./csl-locales ./csljson-locales
+```
+
+And point cslPath and localesPath in citeServerConf.json to point to the json directories.
+
+Also note that the citation server automatically watches the style and locale directories
+to automatically use the new versions when they're pulled. This is subject to [platform
+caveats](https://iojs.org/api/fs.html#fs_caveats)
+
 ## Setting up a standalone citeproc-node server
 
 ### Step 1
@@ -94,10 +115,9 @@ Included as a Git submodule.
 
 ### citeproc-js
 
-Thanks to [citeproc-js](https://bitbucket.org/fbennett/citeproc-js) taking
-nodejs into account it is now included as is as
-citeproc.js, and it should be possible to use updates or modifications to
-citeproc.js by simply replacing the file with a different build.
+Built from [citeproc-js](https://bitbucket.org/fbennett/citeproc-js)
+Currently needs minor modifications to work with citeproc-node, so you should not
+just drop in new versions at the moment.
 
 ## Logging
 
