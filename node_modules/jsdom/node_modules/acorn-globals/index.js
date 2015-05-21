@@ -23,14 +23,40 @@ function declaresThis(node) {
   return node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration';
 }
 
+function reallyParse(source) {
+  try {
+    return acorn.parse(source, {
+      ecmaVersion: 6,
+      allowReturnOutsideFunction: true,
+      sourceType: 'module'
+    });
+  } catch (ex) {
+    if (ex.name !== 'SyntaxError') {
+      throw ex;
+    }
+    try {
+      return acorn.parse(source, {
+        ecmaVersion: 6,
+        allowReturnOutsideFunction: true
+      });
+    } catch (ex) {
+      if (ex.name !== 'SyntaxError') {
+        throw ex;
+      }
+      return acorn.parse(source, {
+        ecmaVersion: 5,
+        allowReturnOutsideFunction: true
+      });
+    }
+  }
+}
 module.exports = findGlobals;
+module.exports.parse = reallyParse;
 function findGlobals(source) {
   var globals = [];
-  var ast = typeof source === 'string' ? acorn.parse(source, {
-    ecmaVersion: 6,
-    allowReturnOutsideFunction: true,
-    sourceType: 'module'
-  }) : source;
+  var ast = typeof source === 'string' ?
+    ast = reallyParse(source) :
+    source;
   if (!(ast && typeof ast === 'object' && ast.type === 'Program')) {
     throw new TypeError('Source must be either a string of JavaScript or an acorn AST');
   }
