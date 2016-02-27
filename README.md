@@ -28,11 +28,12 @@ caveats](https://iojs.org/api/fs.html#fs_caveats)
 
 ### Step 1
 
-Get citeproc-node
+Get citeproc-node and install the dependencies
 
 ```
 git clone --recursive https://github.com/zotero/citeproc-node.git
 cd citeproc-node
+npm install
 ```
 
 ### Step 2
