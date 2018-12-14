@@ -1,9 +1,8 @@
-﻿# citeproc-node
+# citeproc-js-server
 
-Citeproc-node is tested with io.js. It should also work with nodejs 0.12 with harmony features, but
-jsdom, on which citeproc-node relies, has moved to io.js.
+citeproc-js-server is a Node-based server that generates citations and bibliographies using [citeproc.js](https://github.com/Juris-M/citeproc-js).
 
-For optimal performance, you should maintain separate directories with json styles/locales.
+For optimal performance, you should maintain separate directories with JSON styles/locales.
 This can be done by running the included xmltojson.py:
 
 ```
@@ -18,21 +17,22 @@ xmltojson.py --changed 300 ./csl ./csljson
 xmltojson.py --changed 300 ./csl-locales ./csljson-locales
 ```
 
-And point cslPath and localesPath in citeServerConf.json to point to the json directories.
+And point `cslPath` and `localesPath` in config/local.json to point to the json directories.
 
 Also note that the citation server automatically watches the style and locale directories
 to automatically use the new versions when they're pulled. This is subject to [platform
-caveats](https://iojs.org/api/fs.html#fs_caveats)
+caveats](https://nodejs.org/api/fs.html#fs_caveats)
 
-## Setting up a standalone citeproc-node server
+## Setting up citeproc-js-server
 
 ### Step 1
 
-Get citeproc-node
+Get citeproc-js-server
 
 ```
-git clone --recursive https://github.com/zotero/citeproc-node.git
-cd citeproc-node
+git clone --recurse-submodules https://github.com/zotero/citeproc-js-server.git
+cd citeproc-js-server
+npm install
 ```
 
 ### Step 2
@@ -40,7 +40,7 @@ cd citeproc-node
 Start the server:
 
 ```
-node lib/citeServer.js
+npm start
 ```
 
 If all is well, you will see:
@@ -52,7 +52,7 @@ info Server running at http://127.0.0.1:8085
 ### Step 3
 
 Now to test the server using the sampledata.json file provided in the
-citeproc-node sources. Try posting it to your server, from a separate
+citeproc-js-server sources. Try posting it to your server, from a separate
 console:
 
 ```
@@ -76,68 +76,28 @@ You should see a response similar to this:
 
 ## Configuration
 
-Configuration parameters are specified in the *citeServerConf.json* file.
+citeproc-js-server uses [node-config](https://github.com/lorenwest/node-config) for configuration. Configuration parameters can be specified in config/local.json or other files and formats supported by node-config.
 
-Citeproc-node now supports csl styles that has been converted to JSON.
+citeproc-js-server now supports CSL styles that has been converted to JSON.
 This improves performance significantly on style initialization, and somewhat on style execution
-over the jsdom xml parsing mode. Local styles can be converted ahead of time which improves performance
-even futher, otherwise both local and remote styles will be converted at run time.
+over the JSDOM XML parsing mode. Local styles can be converted ahead of time, which improves performance even futher. Otherwise both local and remote styles will be converted at run time.
 
-There is now a python script (xmltojson.py) included to convert a single file or a directory, including
-the option to only convert files that have been modified within a specified time limit, to better handle
-periodic pulling of style/locale changes.
-To use pre-converted json styles, just point the cslPath preference at the directory of converted styles.
+There is a Python script, xmltojson.py, to convert a single file or a directory, including
+the option to only convert files that have been modified within a specified time limit, to better handle periodic pulling of style/locale changes.
+To use pre-converted json styles, just point the `cslPath` preference at the directory of converted styles.
 
 ## Running the tests
 
 Start citation server
 
 ```
-node ./lib/citeServer.js
+npm start
 ```
 
 Run a test with all independent styles in the csl directory:
 
 ```
 node ./test/testallstyles.js
-```
-
-
-## Included libraries
-
-### csl
-
-Included as a Git submodule.
-
-### csl-locales
-
-Included as a Git submodule.
-
-### citeproc-js
-
-Built from [citeproc-js](https://bitbucket.org/fbennett/citeproc-js)
-Currently needs minor modifications to work with citeproc-node, so you should not
-just drop in new versions at the moment.
-
-## Logging
-
-We're using npmlog, which has these levels defined:
-
-- silly   -Infinity
-- verbose 1000
-- info    2000
-- http    3000
-- warn    4000
-- error   5000
-- silent  Infinity
-
-The level at which the server runs is specified in the config file, as the
-`logLevel` parameter.
-
-In the code, to create a log message at a particular level, for example,
-
-```javascript
-log.warn("Uh-oh!");
 ```
 
 ## Using the web service
@@ -168,5 +128,40 @@ The POST data JSON object can have these members:
 * itemIDs - an array of identifiers of those items to convert.  If this is not
   given, the default is to convert all of the items.
 * citationClusters
-* styleXml - a CSL style to use
+* styleXML - a CSL style to use
 
+
+## Included libraries
+
+### csl
+
+CSL citation styles, included as a Git submodule
+
+### csl-locales
+
+CSL locales, included as a Git submodule
+
+### citeproc-js
+
+The [citeproc-js citation processor](https://github.com/Juris-M/citeproc-js)
+
+## Logging
+
+We're using npmlog, which has these levels defined:
+
+- silly   -Infinity
+- verbose 1000
+- info    2000
+- http    3000
+- warn    4000
+- error   5000
+- silent  Infinity
+
+The level at which the server runs is specified in the config file, as the
+`logLevel` parameter.
+
+In the code, to create a log message at a particular level, for example,
+
+```javascript
+log.warn("Uh-oh!");
+```
