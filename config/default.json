@@ -5,6 +5,8 @@
     "cslPath" : "./csl",
     "renamedStylesPath": "./csl/renamed-styles.json",
     "cslDependentPath": "./csl/dependent",
-    "engineCacheSize" : 30,
+    "engineCacheSize" : 40,
+    "timings": false,
+    "debug": true,
     "userAgent": "Zotero Citation Server (https://github.com/zotero/citeproc-node)"
 }
