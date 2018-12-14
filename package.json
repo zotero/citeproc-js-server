@@ -19,6 +19,7 @@
   },
   "devDependencies": {},
   "scripts": {
-    "start": "node lib/citeServer.js"
+    "start": "node lib/citeServer.js",
+    "test": "node test/testallstyles.js"
   }
 }
