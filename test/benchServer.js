@@ -76,7 +76,7 @@ config = argv;
 log.info("", config);
 
 if(argv.customStylePath != '') {
-    config.customStyleXml = fs.readFileSync(config.customStylePath, 'utf8');
+    config.customStyleXML = fs.readFileSync(config.customStylePath, 'utf8');
 }
 
 let stylesList = fs.readdirSync(config.cslPath);
@@ -121,7 +121,7 @@ let styleStrings = ['apsa',
                     ];
 
 if(config.hasOwnProperty('customStylePath')){
-    bib2post.styleXml = config.customStyleXml;
+    bib2post.styleXML = config.customStyleXML;
 }
 let reqBody = JSON.stringify(bib2post);
 //log.info('postObj:');

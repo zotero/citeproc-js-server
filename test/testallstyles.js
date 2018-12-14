@@ -97,7 +97,7 @@ for(var i=0; i < bib2.length; i++){
 //bib2post.citationClusters = loadcites.citations1;
 
 if(config.hasOwnProperty('customStylePath')){
-    bib2post.styleXml = config.customStyleXml;
+    bib2post.styleXML = config.customStyleXML;
 }
 reqBody = JSON.stringify(bib2post);
 
