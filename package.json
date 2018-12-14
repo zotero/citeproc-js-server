@@ -17,5 +17,8 @@
     "optimist": ">=0.3.1",
     "underscore": "^1.9.1"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "scripts": {
+    "start": "node lib/citeServer.js"
+  }
 }
