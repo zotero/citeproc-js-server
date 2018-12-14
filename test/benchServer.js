@@ -36,7 +36,7 @@ log.level = 'verbose';
 //process command line args for config
 let config = {
     'maxconnections':1,
-    'duration':20,
+    'duration':120,
     'maxtotalrequests':1,
     'showoutput':true,
     'style':'chicago-author-date',
