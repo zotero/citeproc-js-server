@@ -27,7 +27,6 @@
 
 let util = require('util');
 let fs = require('fs');
-let Promise = require('bluebird');
 let log = require('npmlog');
 let _ = require('underscore')._;
 let querystring = require('querystring');

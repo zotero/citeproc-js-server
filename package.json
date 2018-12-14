@@ -10,15 +10,12 @@
   "directories": {
     "lib": "./lib"
   },
-  "engines": {
-    "node": ">=0.10.25"
-  },
   "dependencies": {
-    "jsdom": ">=4.0",
+    "config": "^3.0.0",
+    "jsdom": "^13.0.0",
+    "npmlog": "^4.1.2",
     "optimist": ">=0.3.1",
-    "underscore": ">=1.8",
-    "npmlog": ">=1.2",
-    "bluebird": ">=2.9"
+    "underscore": "^1.9.1"
   },
   "devDependencies": {}
 }
