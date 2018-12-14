@@ -1,11 +1,11 @@
 /*
     ***** BEGIN LICENSE BLOCK *****
     
-    This file is part of the citeproc-node Server.
+    This file is part of citeproc-js-server
     
-    Copyright © 2010 Center for History and New Media
-                     George Mason University, Fairfax, Virginia, USA
-                     http://zotero.org
+    Copyright © 2018 Corporation for Digital Scholarship
+                     Vienna, Virginia, USA
+                     https://www.zotero.org
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published by

@@ -1,11 +1,11 @@
 {
   "author": "fcheslack",
-  "name": "citeproc",
-  "description": "Node.js server utilizing citeproc-js to format citations",
-  "version": "v0.0.2",
+  "name": "citeproc-js-server",
+  "description": "Web service to generate citations and bibliographies using citeproc-js",
+  "version": "v2.0.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/zotero/citeproc-node.git"
+    "url": "git://github.com/zotero/citeproc-js-server.git"
   },
   "directories": {
     "lib": "./lib"
