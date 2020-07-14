@@ -6,8 +6,8 @@ For optimal performance, you should maintain separate directories with JSON styl
 This can be done by running the included xmltojson.py:
 
 ```
-./xmltojson.py ./csl ./csljson
-./xmltojson.py ./csl-locales ./csljson-locales
+python3 ./xmltojson.py ./csl ./csljson
+python3 ./xmltojson.py ./csl-locales ./csljson-locales
 ```
 
 Or only those updated within the last 5 minutes:
