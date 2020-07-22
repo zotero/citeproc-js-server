@@ -88,7 +88,7 @@ if __name__ == "__main__":
                     #not modified recently enough; continue without converting
                     continue
             
-            print "converting " + fullname + " to " + newname
+            print("converting " + fullname + " to " + newname)
             doc = w.makedoc(open(fullname).read())
             obj = w.walktojson(doc)
             open(newname, 'w').write(json.dumps(obj,indent=2))
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         if sourceFile[-4:] != '.csl':
             print("Unexpected file extension")
             sys.exit(2)
-        print "converting " + sourceFile + " to " + destFile
+        print("converting " + sourceFile + " to " + destFile)
         doc = w.makedoc(open(sourceFile).read())
         obj = w.walktojson(doc)
         open(destFile, 'w').write(json.dumps(obj,indent=2))
