@@ -1,3 +1,4 @@
 node_modules
 csljson
 csljson-locales
+config/local*
