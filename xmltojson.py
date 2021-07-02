@@ -42,27 +42,25 @@ class JsonWalker:
 
 
 def main():
-    """
-    Convert file or directory from csl xml to json.
-
-    Usage:
-      convert all styles in ./csl that have been modified in the last 5 minutes and place them into ./csljson
-
-      xmltojson.py --changed 300 ./csl ./csljson
-
-    """
     parser = argparse.ArgumentParser(
-        description='Convert xml to json for use with citeproc-js'
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description='Convert xml to json for use with citeproc-js.',
+        epilog='''Examples:
+        
+  Convert all styles in ./csl that have been modified in the last 5 minutes and place them into ./csljson
+
+    ./xmltojson.py --changed 300 ./csl ./csljson
+'''
     )
     parser.add_argument(
         'source',
         type=str,
-        help='source file or directory'
+        help='Source file or directory.'
     )
     parser.add_argument(
         'dest',
         type=str,
-        help='destination filename or directory'
+        help='Destination file or directory.'
     )
     parser.add_argument(
         '--changed',
@@ -70,7 +68,7 @@ def main():
         metavar="N",
         type=int,
         default=0,
-        help='convert files that have been modified within the last <N> seconds'
+        help='Convert files that have been modified within the last <N> seconds.'
     )
 
     args = parser.parse_args()
