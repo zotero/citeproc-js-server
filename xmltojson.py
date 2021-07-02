@@ -111,7 +111,8 @@ def convert_file(source_file, dest_file, verbose):
     w = JsonWalker()
     doc = w.make_doc(open(source_file).read())
     obj = w.walk_to_json(doc)
-    open(dest_file, 'w').write(json.dumps(obj, indent=2))
+    with open(dest_file, 'w') as f:
+        f.write(json.dumps(obj, indent=2))
 
 
 def convert_directory(source_dir, dest_dir, changed, verbose):
