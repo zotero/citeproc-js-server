@@ -70,35 +70,51 @@ def main():
         default=0,
         help='Convert files that have been modified within the last <N> seconds.'
     )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Show verbose progress output.'
+    )
 
     args = parser.parse_args()
 
+    verbose = args.verbose
     mode = os.stat(args.source).st_mode
     if stat.S_ISDIR(mode):
         # It's a directory, convert all csl files inside
         if not os.path.exists(args.dest):
             os.mkdir(args.dest)
-        convert_directory(args.source, args.dest, args.changed)
+        convert_directory(
+            source_dir=args.source,
+            dest_dir=args.dest,
+            changed=args.changed,
+            verbose=verbose,
+        )
     elif stat.S_ISREG(mode):
         # It's a file, only convert this csl file
-        convert_file(args.source, args.dest)
+        convert_file(
+            source_file=args.source,
+            dest_file=args.dest,
+            verbose=verbose,
+        )
     else:
         raise RuntimeError("Unknown file mode.")
 
 
-def convert_file(source_file, dest_file):
+def convert_file(source_file, dest_file, verbose):
     if source_file[-4:] != '.csl':
         raise RuntimeError("Unexpected file extension")
 
-    w = JsonWalker()
+    if verbose:
+        print("Converting " + source_file + " to " + dest_file)
 
-    print("converting " + source_file + " to " + dest_file)
+    w = JsonWalker()
     doc = w.make_doc(open(source_file).read())
     obj = w.walk_to_json(doc)
     open(dest_file, 'w').write(json.dumps(obj, indent=2))
 
 
-def convert_directory(source_dir, dest_dir, changed):
+def convert_directory(source_dir, dest_dir, changed, verbose):
     changed_cutoff = datetime.datetime.now() - datetime.timedelta(seconds=changed)
     for name in os.listdir(source_dir):
         if name[-4:] == '.csl':
@@ -115,7 +131,7 @@ def convert_directory(source_dir, dest_dir, changed):
                 # not modified recently enough; continue without converting
                 continue
 
-        convert_file(source_file, dest_file)
+        convert_file(source_file, dest_file, verbose)
 
 
 if __name__ == "__main__":
