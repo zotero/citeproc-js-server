@@ -89,7 +89,7 @@ if __name__ == "__main__":
                     continue
             
             print("converting " + fullname + " to " + newname)
-            doc = w.makedoc(open(fullname).read())
+            doc = w.makedoc(open(fullname, encoding='utf-8').read())
             obj = w.walktojson(doc)
             open(newname, 'w').write(json.dumps(obj,indent=2))
     elif singleFile:
