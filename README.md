@@ -23,6 +23,14 @@ Also note that the citation server automatically watches the style and locale di
 to automatically use the new versions when they're pulled. This is subject to [platform
 caveats](https://nodejs.org/api/fs.html#fs_caveats)
 
+## Setting up citeproc-js-server using docker
+
+With docker running the citeproc-js-server is easy. Just execute the command
+
+```
+docker run -d -p 8085:8085 <INSERT-OFFICIAL-NAME>
+```
+
 ## Setting up citeproc-js-server
 
 ### Step 1
@@ -49,7 +57,7 @@ If all is well, you will see:
 info Server running at http://127.0.0.1:8085
 ```
 
-### Step 3
+## Test your citeproc-js-server
 
 Now to test the server using the sampledata.json file provided in the
 citeproc-js-server sources. Try posting it to your server, from a separate

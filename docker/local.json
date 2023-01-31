@@ -1,0 +1,12 @@
+{
+    "port" : 8085,
+    "logLevel" : "info",
+    "localesPath" : "./csl-locales-json",
+    "cslPath" : "./csl-json",
+    "renamedStylesPath": "./csl/renamed-styles.json",
+    "cslDependentPath": "./csl/dependent",
+    "engineCacheSize" : 40,
+    "timings": false,
+    "debug": true,
+    "userAgent": "Zotero Citation Server (https://github.com/zotero/citeproc-js-server)"
+}
