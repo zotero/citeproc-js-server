@@ -184,7 +184,7 @@ var singleRequest = function(){
     while(true){
         if(stylesListCounter >= stylesList.length){
             continueRequests = false;
-            Promise.delay(1000).then(outputStats);
+			outputStats();
             return;
         }
         useStyleString = stylesList[stylesListCounter];
