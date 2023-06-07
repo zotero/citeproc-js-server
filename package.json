@@ -11,11 +11,11 @@
     "lib": "./lib"
   },
   "dependencies": {
-    "config": "^3.0.0",
-    "jsdom": "^13.0.0",
-    "npmlog": "^4.1.2",
-    "optimist": ">=0.3.1",
-    "underscore": "^1.9.1"
+    "config": "^3.3.9",
+    "jsdom": "^22.1.0",
+    "npmlog": "^7.0.1",
+    "optimist": "0.6.1",
+    "underscore": "^1.13.6"
   },
   "devDependencies": {},
   "scripts": {
