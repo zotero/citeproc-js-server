@@ -1,7 +1,7 @@
 #!/usr/bin/python
 ''' Make me a module
 '''
-
+from pathlib import Path
 from xml.dom import minidom
 import json,re
 
@@ -89,14 +89,14 @@ if __name__ == "__main__":
                     continue
             
             print("converting " + fullname + " to " + newname)
-            doc = w.makedoc(open(fullname, encoding='utf-8').read())
+            doc = w.makedoc(Path(fullname).read_text(encoding='utf-8'))
             obj = w.walktojson(doc)
-            open(newname, 'w').write(json.dumps(obj,indent=2))
+            Path(newname).write_text(data=json.dumps(obj, indent=2), encoding='utf-8')
     elif singleFile:
         if sourceFile[-4:] != '.csl':
             print("Unexpected file extension")
             sys.exit(2)
         print("converting " + sourceFile + " to " + destFile)
-        doc = w.makedoc(open(sourceFile).read())
+        doc = w.makedoc(Path(sourceFile).read_text(encoding='utf-8'))
         obj = w.walktojson(doc)
-        open(destFile, 'w').write(json.dumps(obj,indent=2))
+        Path(destFile).write_text(data=json.dumps(obj, indent=2), endoding='utf-8')
