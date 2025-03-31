@@ -58,10 +58,10 @@ var defaultQueryObject = {
 };
 
 
-var argv = require('optimist')
+var argv = require('yargs/yargs')(process.argv.slice(2))
     .usage('')
     .default(config)
-    .argv;
+    .parse();
 
 if(argv.h){
     log.info(config);
